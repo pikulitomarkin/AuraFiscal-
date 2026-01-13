@@ -6,9 +6,11 @@ python-dotenv==1.0.0
 pdfplumber==0.10.3
 PyMuPDF==1.24.14  # Versão com wheels pré-compilados para Windows
 lxml==5.1.0  # Para processamento XML
+reportlab==4.0.7  # Para geração de PDF DANFSE
 
 # HTTP Client & API
 httpx==0.25.2
+tenacity==8.2.3  # Para retry logic em APIs
 pydantic==2.12.5
 pydantic-settings==2.12.0
 
@@ -24,10 +26,12 @@ bcrypt==4.1.2
 python-jose[cryptography]==3.3.0
 cryptography==41.0.7
 pyOpenSSL==23.3.0
+signxml==3.2.2  # Para assinatura digital XML
 
 # Validation & Utilities
 validate-docbr==1.10.0
 python-multipart==0.0.6
+loguru==0.7.2  # Sistema de logging avançado
 
 # Progress & UI
 tqdm==4.66.1
