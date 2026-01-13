@@ -2,6 +2,7 @@
 Configurações centralizadas da aplicação usando Pydantic Settings.
 """
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 from pathlib import Path
 from typing import Optional
 
@@ -13,10 +14,10 @@ class Settings(BaseSettings):
     APP_NAME: str = "NFS-e Automation System"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    SECRET_KEY: str
+    SECRET_KEY: str = "default-secret-key-change-in-production"
     
     # Banco de Dados
-    DATABASE_URL: str
+    DATABASE_URL: str = "sqlite+aiosqlite:///./nfse.db"
     DB_ECHO: bool = False
     
     # API Nacional NFS-e (Sefin Nacional - Sistema Nacional NFS-e)
@@ -43,8 +44,8 @@ class Settings(BaseSettings):
     ADN_API_MAX_RETRIES: int = 3
     
     # Certificado Digital
-    CERTIFICATE_PATH: str
-    CERTIFICATE_PASSWORD: str
+    CERTIFICATE_PATH: str = "certificados/cert.pem"
+    CERTIFICATE_PASSWORD: str = ""
     
     # Processamento em Lote
     MAX_BATCH_SIZE: int = 600
@@ -57,7 +58,7 @@ class Settings(BaseSettings):
     
     # Autenticação
     ADMIN_USERNAME: str = "admin"
-    ADMIN_PASSWORD_HASH: str
+    ADMIN_PASSWORD_HASH: str = "$2b$12$default_hash_change_in_production"
     
     # Streamlit
     STREAMLIT_SERVER_PORT: int = 8501
@@ -69,6 +70,14 @@ class Settings(BaseSettings):
         case_sensitive=True,
         extra="ignore"
     )
+    
+    @field_validator('DATABASE_URL')
+    @classmethod
+    def convert_postgres_url(cls, v: str) -> str:
+        """Converte postgresql:// para postgresql+asyncpg:// para Railway."""
+        if v.startswith('postgresql://'):
+            return v.replace('postgresql://', 'postgresql+asyncpg://', 1)
+        return v
     
     @property
     def base_dir(self) -> Path:
