@@ -21,19 +21,61 @@ class CertificateManager:
         Inicializa o gerenciador de certificados.
         
         Args:
-            cert_path: Caminho para o arquivo .pfx/.p12
-            password: Senha do certificado
+            cert_path: Caminho para o arquivo .pfx/.p12 ou .pem
+            password: Senha do certificado (apenas para PFX/P12)
         """
         self.cert_path = Path(cert_path or settings.CERTIFICATE_PATH)
         self.password = password or settings.CERTIFICATE_PASSWORD
         self._certificate: Optional[x509.Certificate] = None
         self._private_key = None
         
-        if self.cert_path.exists():
-            self._load_certificate()
+        # Tenta carregar certificado
+        self._load_certificate()
     
     def _load_certificate(self) -> None:
-        """Carrega o certificado digital do arquivo."""
+        """Carrega o certificado digital do arquivo (PFX/P12 ou PEM)."""
+        # Tenta carregar arquivos PEM separados (cert.pem + key.pem)
+        if self._try_load_pem_files():
+            return
+        
+        # Tenta carregar arquivo PFX/P12
+        if self.cert_path.exists():
+            self._try_load_pfx_file()
+    
+    def _try_load_pem_files(self) -> bool:
+        """Tenta carregar certificado de arquivos PEM separados."""
+        try:
+            cert_dir = self.cert_path.parent
+            cert_file = cert_dir / "cert.pem"
+            key_file = cert_dir / "key.pem"
+            
+            if not (cert_file.exists() and key_file.exists()):
+                return False
+            
+            # Carrega certificado PEM
+            with open(cert_file, 'rb') as f:
+                cert_data = f.read()
+                self._certificate = x509.load_pem_x509_certificate(cert_data, default_backend())
+            
+            # Carrega chave privada PEM
+            with open(key_file, 'rb') as f:
+                key_data = f.read()
+                password_bytes = self.password.encode() if self.password else None
+                self._private_key = serialization.load_pem_private_key(
+                    key_data, 
+                    password=password_bytes,
+                    backend=default_backend()
+                )
+            
+            app_logger.info(f"✅ Certificado PEM carregado: {self.get_subject_name()}")
+            return True
+            
+        except Exception as e:
+            app_logger.warning(f"Não foi possível carregar certificados PEM: {e}")
+            return False
+    
+    def _try_load_pfx_file(self) -> bool:
+        """Tenta carregar certificado de arquivo PFX/P12."""
         try:
             with open(self.cert_path, 'rb') as f:
                 pfx_data = f.read()
@@ -41,18 +83,19 @@ class CertificateManager:
             # Carrega o certificado usando cryptography
             private_key, certificate, additional_certs = pkcs12.load_key_and_certificates(
                 pfx_data,
-                self.password.encode(),
+                self.password.encode() if self.password else None,
                 backend=default_backend()
             )
             
             self._certificate = certificate
             self._private_key = private_key
             
-            app_logger.info(f"Certificado carregado: {self.get_subject_name()}")
+            app_logger.info(f"✅ Certificado PFX carregado: {self.get_subject_name()}")
+            return True
             
         except Exception as e:
-            app_logger.error(f"Erro ao carregar certificado: {e}")
-            raise ValueError(f"Falha ao carregar certificado: {e}")
+            app_logger.error(f"❌ Erro ao carregar certificado PFX: {e}")
+            return False
     
     def is_valid(self) -> bool:
         """
@@ -112,19 +155,43 @@ class CertificateManager:
             Dicionário com informações do certificado
         """
         if not self._certificate:
-            return {"status": "Certificado não carregado"}
+            return {
+                "status": "Certificado não carregado",
+                "subject_cnpj": "N/A",
+                "subject_cn": "N/A",
+                "issuer_cn": "N/A",
+                "not_after": "N/A",
+                "is_valid": False
+            }
         
         subject = self._certificate.subject
         issuer = self._certificate.issuer
         
+        # Extrai CNPJ do subject (se existir)
+        subject_cn = self.get_subject_name()
+        cnpj = "N/A"
+        
+        # Tenta extrair CNPJ do CN ou de outros atributos
+        import re
+        cnpj_match = re.search(r'\d{14}', subject_cn)
+        if cnpj_match:
+            cnpj = cnpj_match.group()
+        
+        not_after = self._certificate.not_valid_after_utc
+        days_until_exp = (not_after - datetime.now(timezone.utc)).days
+        
         return {
-            "subject": self.get_subject_name(),
-            "issuer": issuer.get_attributes_for_oid(x509.NameOID.COMMON_NAME)[0].value,
+            "subject": subject_cn,
+            "subject_cn": subject_cn,
+            "subject_cnpj": cnpj,
+            "issuer": issuer.get_attributes_for_oid(x509.NameOID.COMMON_NAME)[0].value if issuer.get_attributes_for_oid(x509.NameOID.COMMON_NAME) else "N/A",
+            "issuer_cn": issuer.get_attributes_for_oid(x509.NameOID.COMMON_NAME)[0].value if issuer.get_attributes_for_oid(x509.NameOID.COMMON_NAME) else "N/A",
             "serial_number": str(self._certificate.serial_number),
             "valid_from": self._certificate.not_valid_before_utc.isoformat(),
-            "valid_until": self._certificate.not_valid_after_utc.isoformat(),
+            "valid_until": not_after.isoformat(),
+            "not_after": not_after.strftime("%d/%m/%Y %H:%M:%S"),
             "is_valid": self.is_valid(),
-            "days_until_expiration": (self._certificate.not_valid_after_utc - datetime.now(timezone.utc)).days
+            "days_until_expiration": days_until_exp
         }
     
     def sign_data(self, data: bytes) -> bytes:
