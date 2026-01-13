@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     gcc \
     libffi-dev \
     libssl-dev \
+    dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
 # Define diretório de trabalho
@@ -21,8 +22,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copia o resto do código
 COPY . .
 
-# Cria diretório para certificados e ajusta permissões do script
-RUN mkdir -p certificados && chmod +x start.sh
+# Cria diretório para certificados, converte line endings e ajusta permissões
+RUN mkdir -p certificados && \
+    dos2unix start.sh && \
+    chmod +x start.sh
 
 # Expõe a porta (Railway define PORT automaticamente)
 EXPOSE 8501
