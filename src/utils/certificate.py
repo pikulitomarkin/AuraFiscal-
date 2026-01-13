@@ -34,13 +34,32 @@ class CertificateManager:
     
     def _load_certificate(self) -> None:
         """Carrega o certificado digital do arquivo (PFX/P12 ou PEM)."""
-        # Tenta carregar arquivos PEM separados (cert.pem + key.pem)
-        if self._try_load_pem_files():
-            return
+        try:
+            # Tenta carregar arquivos PEM separados (cert.pem + key.pem)
+            if self._try_load_pem_files():
+                return
+            
+            # Tenta carregar arquivo PFX/P12
+            if self.cert_path.exists():
+                self._try_load_pfx_file()
+        except Exception as e:
+            # Não falha na inicialização - apenas loga o erro
+            app_logger.warning(f"⚠️ Certificado não carregado: {e}")
+            app_logger.info("   O certificado pode ser carregado posteriormente via reload()")
+    
+    def reload(self) -> bool:
+        """
+        Recarrega o certificado (útil após criação de arquivos PEM no Railway).
         
-        # Tenta carregar arquivo PFX/P12
-        if self.cert_path.exists():
-            self._try_load_pfx_file()
+        Returns:
+            True se carregado com sucesso, False caso contrário
+        """
+        try:
+            self._load_certificate()
+            return self._certificate is not None
+        except Exception as e:
+            app_logger.error(f"❌ Erro ao recarregar certificado: {e}")
+            return False
     
     def _try_load_pem_files(self) -> bool:
         """Tenta carregar certificado de arquivos PEM separados."""

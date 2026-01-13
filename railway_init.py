@@ -57,7 +57,19 @@ def main():
     print("="*60 + "\n")
     
     # Configurar certificados
-    if not setup_certificates():
+    cert_ok = setup_certificates()
+    
+    if cert_ok:
+        # Recarrega o certificate_manager após criar os arquivos
+        try:
+            from src.utils.certificate import certificate_manager
+            if certificate_manager.reload():
+                print("✅ Certificate Manager recarregado com sucesso")
+            else:
+                print("⚠️ Certificate Manager não conseguiu recarregar certificado")
+        except Exception as e:
+            print(f"⚠️ Erro ao recarregar Certificate Manager: {e}")
+    else:
         print("\n❌ Falha na configuração de certificados")
         print("   O sistema pode não funcionar corretamente para emissão de NFS-e")
     
