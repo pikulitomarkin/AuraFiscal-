@@ -1,0 +1,123 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment Variables
+.env
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Certificados (NUNCA COMMITAR!)
+certs/
+certificados/*.pem
+certificados/*.pfx
+certificados/*.p12
+*.pfx
+*.p12
+*.pem
+*.key
+cert_b64.txt
+key_b64.txt
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Uploads
+uploads/
+temp_files/
+
+# ==================== ARQUIVOS DE TESTE ====================
+tests/
+test_*.py
+*_test.py
+
+# ==================== PDFs e XMLs de teste ====================
+pdfs_homologacao/
+xmls_homologacao/
+xml_*.xml
+
+# ==================== Arquivos de debug ====================
+debug_*.py
+xml_debug_*
+*_debug.*
+
+# ==================== Documentação de deploy (sensível) ====================
+RAILWAY_VARIAVEIS.txt
+
+# ==================== Scripts desnecessários para produção ====================
+TEST_RESULTS_SUMMARY.md
+CHECKLIST_PRODUCAO.md
+extrair_certificado.ps1
+extrair_certificado.py
+gerar_xml_exemplo.py
+gerar_xmls_homologacao.py
+analisar_pdf.py
+
+# ==================== NFS-e geradas (arquivos de produção) ====================
+nfse_*.pdf
+nfse_*.xml
+resultado_*.json
+
+# ==================== Arquivos de swagger/spec ====================
+swagger.html
+api-spec.json

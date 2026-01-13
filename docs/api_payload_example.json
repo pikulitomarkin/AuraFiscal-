@@ -1,0 +1,86 @@
+{
+  "prestador": {
+    "cnpj": "12345678000190",
+    "inscricao_municipal": "123456",
+    "razao_social": "Empresa Prestadora de Serviços LTDA",
+    "nome_fantasia": "Empresa Serviços",
+    "logradouro": "Avenida Principal",
+    "numero": "1000",
+    "complemento": "Sala 101",
+    "bairro": "Centro",
+    "municipio": "São Paulo",
+    "uf": "SP",
+    "cep": "01310000",
+    "email": "contato@empresa.com.br",
+    "telefone": "1140041234"
+  },
+  "tomador": {
+    "cpf": "12345678900",
+    "nome": "João da Silva",
+    "email": "joao.silva@email.com",
+    "telefone": "11987654321",
+    "logradouro": "Rua das Flores",
+    "numero": "123",
+    "complemento": "Apto 45",
+    "bairro": "Jardim São Paulo",
+    "municipio": "São Paulo",
+    "uf": "SP",
+    "cep": "01234567"
+  },
+  "servico": {
+    "descricao": "Serviços de consultoria e desenvolvimento de software",
+    "valor_servico": "1500.00",
+    "valor_deducoes": "0.00",
+    "aliquota_iss": "2.5",
+    "aliquota_pis": "0.65",
+    "aliquota_cofins": "3.00",
+    "aliquota_inss": "0.00",
+    "aliquota_ir": "0.00",
+    "aliquota_csll": "0.00",
+    "item_lista_servico": "1.09",
+    "codigo_cnae": "6201500",
+    "codigo_tributacao_municipio": "109",
+    "discriminacao": "Prestação de serviços de consultoria especializada em tecnologia da informação, desenvolvimento de aplicações web e mobile, conforme contrato de prestação de serviços Nº 2023/001. Período de referência: Janeiro/2023."
+  },
+  "nfse": {
+    "data_emissao": "2023-01-15T14:30:00",
+    "competencia": "2023-01-01",
+    "natureza_operacao": 1,
+    "regime_especial_tributacao": null,
+    "optante_simples_nacional": false,
+    "incentivador_cultural": false,
+    "hash_transacao": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
+    "outras_informacoes": "Nota fiscal emitida via sistema automatizado NFS-e Nacional"
+  },
+  "response_example": {
+    "sucesso": true,
+    "numero_nfse": "202301000001",
+    "codigo_verificacao": "A1B2C3D4",
+    "protocolo": "PROT2023011512345678",
+    "data_processamento": "2023-01-15T14:30:05",
+    "url_nfse": "https://nfse.gov.br/consulta/202301000001",
+    "mensagem": "NFS-e emitida com sucesso"
+  },
+  "error_response_example": {
+    "sucesso": false,
+    "numero_nfse": null,
+    "codigo_verificacao": null,
+    "protocolo": null,
+    "mensagem_erro": "CPF do tomador inválido",
+    "codigo_erro": "E101"
+  },
+  "metadata": {
+    "api_version": "1.0",
+    "endpoint": "https://api.nfse.gov.br/v1/nfse/emitir",
+    "method": "POST",
+    "content_type": "application/json",
+    "authentication": "Certificate-based (A1)",
+    "notes": [
+      "Natureza Operação: 1=Tributação no município, 2=Fora do município, 3=Isenção, 4=Imune, 5=Exigibilidade suspensa, 6=Exportação",
+      "Item Lista Serviço: Conforme LC 116/2003",
+      "Todos os valores monetários devem ser strings com 2 casas decimais",
+      "CPF/CNPJ devem ser enviados sem formatação (apenas números)",
+      "Hash Transação: Identificador único para rastreamento interno"
+    ]
+  }
+}

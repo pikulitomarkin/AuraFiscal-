@@ -1,0 +1,150 @@
+{
+  "openapi_version": "3.0.1",
+  "api_name": "API NFS-e - ADN Recepção",
+  "base_url": "https://api.nfse.gov.br/adn",
+  
+  "authentication": {
+    "type": "Certificate",
+    "description": "Autenticação via Certificado Digital A1 (.pfx) no header X-Certificate em formato PEM"
+  },
+  
+  "endpoints": {
+    "recepcao_lote": {
+      "path": "/DFe",
+      "method": "POST",
+      "description": "Recepciona um lote de Documentos Fiscais Eletrônicos (NFS-e)",
+      
+      "request": {
+        "content_type": "application/json",
+        "schema": {
+          "LoteXmlGZipB64": {
+            "type": "array",
+            "items": "string",
+            "description": "Array de XMLs NFS-e comprimidos em GZIP e codificados em Base64",
+            "example": [
+              "H4sIAAAAAAAA/+1cW3PbNhZ+z6/gOJO0nU4lURIlyrKzY0uO3UntOLa8zTTTGYAESKINAlwAlJz99T0ALhIpybZk2e5sOzOxROLi+3AunHMAfPy...",
+              "H4sIAAAAAAAA/+2dW3PbNhaA3/Mr3JnuZp..."
+            ]
+          }
+        }
+      },
+      
+      "responses": {
+        "201": {
+          "description": "Sucesso - Lote processado",
+          "content_type": "application/json",
+          "schema": {
+            "Lote": {
+              "type": "array",
+              "items": {
+                "ChaveAcesso": "string (50 caracteres) - Chave de acesso da NFS-e",
+                "NsuRecepcao": "string - NSU Número Sequencial Único",
+                "StatusProcessamento": "string - PROCESSADO | REJEITADO | EM_PROCESSAMENTO",
+                "Alertas": [
+                  {
+                    "Codigo": "string",
+                    "Descricao": "string",
+                    "Complemento": "string",
+                    "Parametros": ["string"]
+                  }
+                ],
+                "Erros": [
+                  {
+                    "Codigo": "string",
+                    "Descricao": "string",
+                    "Complemento": "string",
+                    "Parametros": ["string"]
+                  }
+                ]
+              }
+            },
+            "TipoAmbiente": "PRODUCAO | HOMOLOGACAO",
+            "VersaoAplicativo": "string",
+            "DataHoraProcessamento": "datetime (ISO 8601)"
+          },
+          "example": {
+            "Lote": [
+              {
+                "ChaveAcesso": "12345678901234567890123456789012345678901234567890",
+                "NsuRecepcao": "000000000001",
+                "StatusProcessamento": "PROCESSADO",
+                "Alertas": [],
+                "Erros": []
+              }
+            ],
+            "TipoAmbiente": "HOMOLOGACAO",
+            "VersaoAplicativo": "1.0.0",
+            "DataHoraProcessamento": "2026-01-11T10:30:00Z"
+          }
+        },
+        "400": {
+          "description": "Bad Request - Erro de validação",
+          "content_type": "application/json",
+          "schema": {
+            "type": "string",
+            "title": "string",
+            "status": 400,
+            "detail": "string",
+            "instance": "string",
+            "errors": {}
+          }
+        }
+      }
+    }
+  },
+  
+  "xml_structure": {
+    "description": "Estrutura XML NFS-e padrão ADN",
+    "namespace": "http://www.sped.fazenda.gov.br/nfse",
+    "root_element": "DPS",
+    "version": "1.00",
+    
+    "example_xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<DPS xmlns=\"http://www.sped.fazenda.gov.br/nfse\" versao=\"1.00\">\n  <Prestador>\n    <CNPJ>12345678000190</CNPJ>\n    <InscricaoMunicipal>123456</InscricaoMunicipal>\n    <RazaoSocial>Empresa Prestadora LTDA</RazaoSocial>\n    <NomeFantasia>Empresa</NomeFantasia>\n  </Prestador>\n  \n  <Tomador>\n    <CPF>12345678901</CPF>\n    <Nome>João da Silva</Nome>\n    <Endereco>\n      <Logradouro>Rua Exemplo</Logradouro>\n      <Numero>100</Numero>\n      <Bairro>Centro</Bairro>\n      <Municipio>São Paulo</Municipio>\n      <UF>SP</UF>\n      <CEP>01310000</CEP>\n    </Endereco>\n    <Email>joao@email.com</Email>\n    <Telefone>11999999999</Telefone>\n  </Tomador>\n  \n  <Servico>\n    <Discriminacao>Serviço de Consultoria</Discriminacao>\n    <CodigoServicoMunicipal>01.01</CodigoServicoMunicipal>\n    <CodigoTributacaoMunicipal>010101</CodigoTributacaoMunicipal>\n    <ItemListaServico>01.01</ItemListaServico>\n    \n    <Valores>\n      <ValorServicos>1000.00</ValorServicos>\n      <AliquotaISS>5.00</AliquotaISS>\n      <ValorISS>50.00</ValorISS>\n      <ISSRetido>2</ISSRetido>\n    </Valores>\n  </Servico>\n  \n  <InformacoesComplementares>\n    Informações adicionais do serviço prestado.\n  </InformacoesComplementares>\n</DPS>"
+  },
+  
+  "workflow": {
+    "step1": "Montar objeto NFSeRequest com dados do Prestador, Tomador e Serviço",
+    "step2": "Gerar XML NFS-e usando NFSeXMLGenerator.gerar_xml_nfse()",
+    "step3": "Comprimir XML em GZIP e codificar em Base64 usando comprimir_e_codificar()",
+    "step4": "Criar array LoteXmlGZipB64 com os XMLs comprimidos",
+    "step5": "Enviar POST para /adn/DFe com o payload JSON",
+    "step6": "Processar resposta - cada documento retorna ChaveAcesso, NSU e Status",
+    "step7": "Armazenar resultados no banco de dados",
+    "step8": "Exibir resultados na interface Streamlit"
+  },
+  
+  "important_notes": [
+    "API ADN trabalha com XMLs, não JSON direto",
+    "XMLs devem ser comprimidos em GZIP (nível 9) e codificados em Base64",
+    "Cada documento no lote é processado individualmente",
+    "ChaveAcesso é o identificador único da NFS-e (50 caracteres)",
+    "NSU (Número Sequencial Único) permite rastreamento",
+    "StatusProcessamento indica: PROCESSADO, REJEITADO ou EM_PROCESSAMENTO",
+    "Erros são retornados por documento (não bloqueiam o lote inteiro)",
+    "Ambiente HOMOLOGACAO para testes, PRODUCAO para emissões reais",
+    "Certificado Digital A1 é obrigatório (autenticação mútua TLS)"
+  ],
+  
+  "error_codes": {
+    "common_errors": {
+      "E001": "XML mal formado",
+      "E002": "Schema inválido",
+      "E003": "Assinatura digital inválida",
+      "E004": "Certificado vencido ou inválido",
+      "E005": "CNPJ prestador não autorizado",
+      "E006": "Duplicidade - NFS-e já emitida",
+      "E007": "Valor do serviço inválido",
+      "E008": "Alíquota ISS incorreta",
+      "E009": "Código de serviço inválido",
+      "E010": "CPF/CNPJ tomador inválido"
+    }
+  },
+  
+  "limits": {
+    "max_batch_size": 50,
+    "recommended_batch_size": 10,
+    "max_xml_size_mb": 5,
+    "timeout_seconds": 30,
+    "max_retries": 3
+  }
+}
