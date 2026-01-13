@@ -118,6 +118,26 @@ async def emitir_nfse_com_pdf(
         dict com chave_acesso, xml_path, pdf_path
     """
     
+    # Verificar certificados logo no início
+    cert_dir = Path("certificados")
+    cert_path = cert_dir / "cert.pem"
+    key_path = cert_dir / "key.pem"
+    
+    if not cert_dir.exists():
+        raise FileNotFoundError(
+            "❌ Pasta 'certificados' não encontrada. "
+            "Verifique a configuração das variáveis de ambiente no Railway."
+        )
+    
+    if not cert_path.exists() or not key_path.exists():
+        raise FileNotFoundError(
+            f"❌ Certificados não encontrados:\n"
+            f"   cert.pem existe: {cert_path.exists()}\n"
+            f"   key.pem existe: {key_path.exists()}\n"
+            f"   Certifique-se de que CERTIFICATE_CERT_PEM e CERTIFICATE_KEY_PEM "
+            f"estão configurados no Railway."
+        )
+    
     print("\n" + "="*70)
     print("EMISSAO NFS-e COMPLETA (XML + PDF)")
     print("="*70)
@@ -147,9 +167,7 @@ async def emitir_nfse_com_pdf(
     
     # 3. Assinar
     print("[2] Assinando XML...")
-    cert_path = "certificados/cert.pem"
-    key_path = "certificados/key.pem"
-    xml_assinado = assinar_xml_exclusive_c14n(xml_dps, cert_path, key_path)
+    xml_assinado = assinar_xml_exclusive_c14n(xml_dps, str(cert_path), str(key_path))
     print(f"    OK {len(xml_assinado)} bytes")
     
     # 4. Comprimir
@@ -161,7 +179,7 @@ async def emitir_nfse_com_pdf(
     
     # 5. Enviar
     print("[4] Enviando para Sefin Nacional...")
-    client = NFSeAPIClient(cert_path=cert_path, key_path=key_path)
+    client = NFSeAPIClient(cert_path=str(cert_path), key_path=str(key_path))
     
     try:
         resultado = await client.emitir_nfse(b64_encoded)
