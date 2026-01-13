@@ -1,5 +1,5 @@
 # Dockerfile para Railway - NFS-e Automation System
-# Build: v3 - Python startup script
+# Build: v4 - Removed dos2unix, using Python startup
 FROM python:3.11-slim
 
 # Instala dependências do sistema
@@ -7,7 +7,6 @@ RUN apt-get update && apt-get install -y \
     gcc \
     libffi-dev \
     libssl-dev \
-    dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
 # Define diretório de trabalho
