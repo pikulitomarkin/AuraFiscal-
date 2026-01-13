@@ -1,4 +1,5 @@
 # Dockerfile para Railway - NFS-e Automation System
+# Build: v3 - Python startup script
 FROM python:3.11-slim
 
 # Instala dependências do sistema
