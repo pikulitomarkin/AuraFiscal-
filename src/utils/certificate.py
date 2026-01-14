@@ -76,15 +76,24 @@ class CertificateManager:
                 cert_data = f.read()
                 self._certificate = x509.load_pem_x509_certificate(cert_data, default_backend())
             
-            # Carrega chave privada PEM
+            # Carrega chave privada PEM (tenta sem senha primeiro, depois com senha se necessário)
             with open(key_file, 'rb') as f:
                 key_data = f.read()
-                password_bytes = self.password.encode() if self.password else None
-                self._private_key = serialization.load_pem_private_key(
-                    key_data, 
-                    password=password_bytes,
-                    backend=default_backend()
-                )
+                try:
+                    # Primeiro tenta sem senha (chaves PEM do Railway não têm senha)
+                    self._private_key = serialization.load_pem_private_key(
+                        key_data, 
+                        password=None,
+                        backend=default_backend()
+                    )
+                except TypeError:
+                    # Se falhar, tenta com senha do certificado PFX
+                    password_bytes = self.password.encode() if self.password else None
+                    self._private_key = serialization.load_pem_private_key(
+                        key_data, 
+                        password=password_bytes,
+                        backend=default_backend()
+                    )
             
             app_logger.info(f"✅ Certificado PEM carregado: {self.get_subject_name()}")
             return True
