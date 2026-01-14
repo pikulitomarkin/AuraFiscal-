@@ -14,6 +14,7 @@ def setup_certificates():
     """
     cert_dir = Path("certificados")
     cert_dir.mkdir(exist_ok=True)
+    print(f"📁 Pasta certificados criada/verificada: {cert_dir.absolute()}")
     
     # Verificar se certificados já existem
     cert_path = cert_dir / "cert.pem"
@@ -21,33 +22,45 @@ def setup_certificates():
     
     if cert_path.exists() and key_path.exists():
         print("✅ Certificados já existem localmente")
+        print(f"   - {cert_path} ({cert_path.stat().st_size} bytes)")
+        print(f"   - {key_path} ({key_path.stat().st_size} bytes)")
         return True
     
     # Tentar carregar de variáveis de ambiente
     cert_b64 = os.getenv("CERTIFICATE_CERT_PEM")
     key_b64 = os.getenv("CERTIFICATE_KEY_PEM")
     
+    print(f"\n🔍 Verificando variáveis de ambiente:")
+    print(f"   CERTIFICATE_CERT_PEM: {'✅ Definida' if cert_b64 else '❌ NÃO DEFINIDA'} ({len(cert_b64) if cert_b64 else 0} chars)")
+    print(f"   CERTIFICATE_KEY_PEM: {'✅ Definida' if key_b64 else '❌ NÃO DEFINIDA'} ({len(key_b64) if key_b64 else 0} chars)")
+    
     if cert_b64 and key_b64:
         try:
+            print("\n🔓 Decodificando certificados Base64...")
             # Decodificar e salvar cert.pem
             cert_content = base64.b64decode(cert_b64)
             cert_path.write_bytes(cert_content)
-            print(f"✅ Certificado salvo em {cert_path}")
+            print(f"✅ Certificado salvo: {cert_path} ({len(cert_content)} bytes)")
             
             # Decodificar e salvar key.pem
             key_content = base64.b64decode(key_b64)
             key_path.write_bytes(key_content)
             os.chmod(key_path, 0o600)  # Permissões restritas
-            print(f"✅ Chave privada salva em {key_path}")
+            print(f"✅ Chave privada salva: {key_path} ({len(key_content)} bytes)")
             
             return True
         except Exception as e:
             print(f"❌ Erro ao decodificar certificados: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     else:
-        print("⚠️ Variáveis CERTIFICATE_CERT_PEM e CERTIFICATE_KEY_PEM não definidas")
-        print("   Certifique-se de que os arquivos cert.pem e key.pem existem em ./certificados/")
-        return cert_path.exists() and key_path.exists()
+        print("\n❌ CERTIFICADOS NÃO CONFIGURADOS!")
+        print("   Você precisa configurar no Railway:")
+        print("   1. CERTIFICATE_CERT_PEM (Base64 do cert.pem)")
+        print("   2. CERTIFICATE_KEY_PEM (Base64 do key.pem)")
+        print("\n   Verifique o arquivo RAILWAY_VARIAVEIS.txt no repositório")
+        return False
 
 
 def main():
