@@ -1,6 +1,6 @@
 """
 Gera DANFSE (Documento Auxiliar da NFS-e) em PDF a partir do XML autorizado.
-Layout simplificado mas completo com todas as informações obrigatórias.
+Layout completo com QR Code para validação da chave de acesso.
 """
 
 from pathlib import Path
@@ -8,11 +8,13 @@ from lxml import etree
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm, mm
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.pdfgen import canvas
 from datetime import datetime
+import qrcode
+from io import BytesIO
 
 
 class GeradorDANFSE:
@@ -102,6 +104,39 @@ class GeradorDANFSE:
             'liquido': valores.findtext('.//nfse:vLiq', namespaces=self.ns, default='0.00'),
         }
     
+    def _gerar_qrcode(self) -> Image:
+        """
+        Gera QR Code com a chave de acesso da NFS-e.
+        
+        Returns:
+            Imagem do QR Code para o ReportLab
+        """
+        # Criar QR Code
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=2,
+        )
+        
+        # Dados do QR Code: URL de consulta com a chave de acesso
+        url_consulta = f"https://www.nfse.gov.br/EmissorNacional/Notas/Consultar?chave={self.chave_acesso}"
+        qr.add_data(url_consulta)
+        qr.make(fit=True)
+        
+        # Gerar imagem
+        img_qr = qr.make_image(fill_color="black", back_color="white")
+        
+        # Converter para formato ReportLab
+        buffer = BytesIO()
+        img_qr.save(buffer, format='PNG')
+        buffer.seek(0)
+        
+        # Criar Image do ReportLab
+        img = Image(buffer, width=3*cm, height=3*cm)
+        
+        return img
+    
     def gerar_pdf(self, output_path: str):
         """
         Gera PDF do DANFSE.
@@ -170,43 +205,58 @@ class GeradorDANFSE:
         
         elementos.append(Spacer(1, 0.3*cm))
         
-        # DADOS DA NFS-e
+        # DADOS DA NFS-e com QR CODE
         elementos.append(Paragraph("DADOS DA NFS-e", secao_style))
         
-        dados_nfse = [
-            ['Número NFS-e:', self.numero_nfse, 'Data/Hora:', self.dh_processamento[:19] if self.dh_processamento else ''],
-            ['Chave de Acesso:', {'content': self.chave_acesso, 'colspan': 3}],
-            ['Local Emissão:', self.local_emissao, 'Local Prestação:', self.local_prestacao],
+        # Criar tabela com QR Code
+        qr_img = self._gerar_qrcode()
+        
+        # Tabela principal com dados e QR Code
+        dados_nfse_esq = [
+            ['Número NFS-e:', self.numero_nfse],
+            ['Data/Hora:', self.dh_processamento[:19] if self.dh_processamento else ''],
+            ['Local Emissão:', self.local_emissao],
+            ['Local Prestação:', self.local_prestacao],
         ]
         
-        # Processar colspan
-        dados_processados = []
-        for linha in dados_nfse:
-            linha_proc = []
-            skip_next = 0
-            for i, cell in enumerate(linha):
-                if skip_next > 0:
-                    skip_next -= 1
-                    continue
-                if isinstance(cell, dict) and 'colspan' in cell:
-                    linha_proc.append(cell['content'])
-                    skip_next = cell['colspan'] - 1
-                else:
-                    linha_proc.append(cell)
-            dados_processados.append(linha_proc)
-        
-        tabela_nfse = Table(dados_processados, colWidths=[3.5*cm, 5*cm, 3*cm, 5.5*cm])
-        tabela_nfse.setStyle(TableStyle([
+        tabela_esq = Table(dados_nfse_esq, colWidths=[3.5*cm, 6.5*cm])
+        tabela_esq.setStyle(TableStyle([
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
             ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#E8E8E8')),
-            ('BACKGROUND', (2, 0), (2, 0), colors.HexColor('#E8E8E8')),
             ('FONT', (0, 0), (-1, -1), 'Helvetica', 8),
             ('FONT', (0, 0), (0, -1), 'Helvetica-Bold', 8),
-            ('FONT', (2, 0), (2, 0), 'Helvetica-Bold', 8),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('SPAN', (1, 1), (3, 1)),  # Chave ocupa 3 colunas
         ]))
-        elementos.append(tabela_nfse)
+        
+        # Tabela QR Code à direita
+        qr_legenda = Paragraph("<font size=7><b>Consulte a NFS-e:</b><br/>Aponte a câmera<br/>para o QR Code</font>", subtitulo_style)
+        dados_qr = [[qr_img], [qr_legenda]]
+        tabela_qr = Table(dados_qr, colWidths=[6*cm])
+        tabela_qr.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        
+        # Combinar tabelas lado a lado
+        tabela_principal = Table([[tabela_esq, tabela_qr]], colWidths=[10*cm, 6.5*cm])
+        tabela_principal.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        elementos.append(tabela_principal)
+        
+        elementos.append(Spacer(1, 0.3*cm))
+        
+        # CHAVE DE ACESSO (em destaque)
+        chave_style = ParagraphStyle(
+            'Chave',
+            parent=styles['Normal'],
+            fontSize=9,
+            fontName='Courier',
+            textColor=colors.HexColor('#000080'),
+            alignment=TA_CENTER,
+            spaceAfter=6
+        )
+        elementos.append(Paragraph(f"<b>CHAVE DE ACESSO:</b><br/>{self.chave_acesso}", chave_style))
         
         elementos.append(Spacer(1, 0.5*cm))
         

@@ -136,8 +136,8 @@ class CertificateManager:
             return False
         
         now = datetime.now(timezone.utc)
-        not_before = self._certificate.not_valid_before_utc
-        not_after = self._certificate.not_valid_after_utc
+        not_before = self._certificate.not_valid_before.replace(tzinfo=timezone.utc)
+        not_after = self._certificate.not_valid_after.replace(tzinfo=timezone.utc)
         
         is_valid = not_before <= now <= not_after
         
@@ -205,7 +205,7 @@ class CertificateManager:
         if cnpj_match:
             cnpj = cnpj_match.group()
         
-        not_after = self._certificate.not_valid_after_utc
+        not_after = self._certificate.not_valid_after.replace(tzinfo=timezone.utc)
         days_until_exp = (not_after - datetime.now(timezone.utc)).days
         
         return {

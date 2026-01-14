@@ -1009,19 +1009,133 @@ def render_settings():
     
     st.markdown("---")
     
-    # Limpar sessão
-    st.markdown("### 🗑️ Manutenção")
+    # Ações em Lote
+    st.markdown("### 📦 Ações em Lote")
+    st.markdown("Gerencie todas as notas fiscais emitidas de uma vez")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("🗑️ Limpar Histórico de Emissões", type="secondary"):
-            st.session_state.emitted_nfse = []
-            st.session_state.last_emission = None
-            # Salvar arquivo vazio
-            save_emitted_nfse()
-            st.success("✅ Histórico limpo com sucesso!")
-            st.rerun()
+        if st.button("📥 Baixar Todos os PDFs", type="primary", use_container_width=True):
+            if not st.session_state.emitted_nfse:
+                st.warning("⚠️ Nenhuma nota fiscal emitida para baixar")
+            else:
+                with st.spinner("📦 Gerando arquivo ZIP com todos os PDFs..."):
+                    try:
+                        import zipfile
+                        from io import BytesIO
+                        from datetime import datetime
+                        
+                        # Criar arquivo ZIP em memória
+                        zip_buffer = BytesIO()
+                        
+                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                            pdfs_encontrados = 0
+                            
+                            for nota in st.session_state.emitted_nfse:
+                                pdf_path = nota.get('pdf_path')
+                                if pdf_path and Path(pdf_path).exists():
+                                    # Adicionar PDF ao ZIP
+                                    zip_file.write(pdf_path, Path(pdf_path).name)
+                                    pdfs_encontrados += 1
+                        
+                        if pdfs_encontrados > 0:
+                            # Preparar download
+                            zip_buffer.seek(0)
+                            data_hora = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            
+                            st.download_button(
+                                label=f"⬇️ Download ZIP ({pdfs_encontrados} PDFs)",
+                                data=zip_buffer.getvalue(),
+                                file_name=f"nfse_pdfs_{data_hora}.zip",
+                                mime="application/zip",
+                                use_container_width=True
+                            )
+                            
+                            st.success(f"✅ {pdfs_encontrados} PDF(s) prontos para download!")
+                        else:
+                            st.warning("⚠️ Nenhum arquivo PDF encontrado no sistema")
+                    
+                    except Exception as e:
+                        st.error(f"❌ Erro ao gerar ZIP: {e}")
+    
+    with col2:
+        if st.button("📄 Baixar Todos os XMLs", type="primary", use_container_width=True):
+            if not st.session_state.emitted_nfse:
+                st.warning("⚠️ Nenhuma nota fiscal emitida para baixar")
+            else:
+                with st.spinner("📦 Gerando arquivo ZIP com todos os XMLs..."):
+                    try:
+                        import zipfile
+                        from io import BytesIO
+                        from datetime import datetime
+                        
+                        # Criar arquivo ZIP em memória
+                        zip_buffer = BytesIO()
+                        
+                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                            xmls_encontrados = 0
+                            
+                            for nota in st.session_state.emitted_nfse:
+                                xml_path = nota.get('xml_path')
+                                if xml_path and Path(xml_path).exists():
+                                    # Adicionar XML ao ZIP
+                                    zip_file.write(xml_path, Path(xml_path).name)
+                                    xmls_encontrados += 1
+                        
+                        if xmls_encontrados > 0:
+                            # Preparar download
+                            zip_buffer.seek(0)
+                            data_hora = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            
+                            st.download_button(
+                                label=f"⬇️ Download ZIP ({xmls_encontrados} XMLs)",
+                                data=zip_buffer.getvalue(),
+                                file_name=f"nfse_xmls_{data_hora}.zip",
+                                mime="application/zip",
+                                use_container_width=True
+                            )
+                            
+                            st.success(f"✅ {xmls_encontrados} XML(s) prontos para download!")
+                        else:
+                            st.warning("⚠️ Nenhum arquivo XML encontrado no sistema")
+                    
+                    except Exception as e:
+                        st.error(f"❌ Erro ao gerar ZIP: {e}")
+    
+    st.markdown("---")
+    
+    # Limpar sessão
+    st.markdown("### 🗑️ Manutenção")
+    st.warning("⚠️ **Atenção:** As ações abaixo são irreversíveis!")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Melhorar botão de limpar histórico com confirmação
+        if st.button("🗑️ Limpar Histórico de Emissões", type="secondary", use_container_width=True, help="Remove todas as notas do histórico. Esta ação não pode ser desfeita!"):
+            if 'confirmar_limpeza' not in st.session_state:
+                st.session_state.confirmar_limpeza = False
+            
+            if not st.session_state.confirmar_limpeza:
+                st.session_state.confirmar_limpeza = True
+                st.warning("⚠️ Tem certeza? Clique novamente para confirmar!")
+                st.rerun()
+            else:
+                total_notas = len(st.session_state.emitted_nfse)
+                st.session_state.emitted_nfse = []
+                st.session_state.last_emission = None
+                st.session_state.confirmar_limpeza = False
+                # Salvar arquivo vazio
+                save_emitted_nfse()
+                st.success(f"✅ Histórico limpo! {total_notas} nota(s) removida(s).")
+                st.rerun()
+        
+        # Resetar confirmação se usuário não confirmou
+        if st.session_state.get('confirmar_limpeza'):
+            if st.button("❌ Cancelar", use_container_width=True):
+                st.session_state.confirmar_limpeza = False
+                st.rerun()
     
     with col2:
         if st.button("🔄 Reiniciar Sessão", type="secondary"):

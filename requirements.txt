@@ -1,13 +1,13 @@
 # Core Framework
 streamlit==1.30.0
 python-dotenv==1.0.0
-pytz==2023.3  # Para fuso horário de Brasília
 
 # PDF Processing
 pdfplumber==0.10.3
 PyMuPDF==1.24.14  # Versão com wheels pré-compilados para Windows
 lxml==5.1.0  # Para processamento XML
 reportlab==4.0.7  # Para geração de PDF DANFSE
+qrcode[pil]==7.4.2  # Para geração de QR Code no DANFSE
 
 # HTTP Client & API
 httpx==0.25.2
