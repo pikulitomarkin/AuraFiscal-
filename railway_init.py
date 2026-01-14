@@ -37,16 +37,60 @@ def setup_certificates():
     if cert_b64 and key_b64:
         try:
             print("\n🔓 Decodificando certificados Base64...")
-            # Decodificar e salvar cert.pem
-            cert_content = base64.b64decode(cert_b64)
-            cert_path.write_bytes(cert_content)
-            print(f"✅ Certificado salvo: {cert_path} ({len(cert_content)} bytes)")
             
-            # Decodificar e salvar key.pem
-            key_content = base64.b64decode(key_b64)
-            key_path.write_bytes(key_content)
-            os.chmod(key_path, 0o600)  # Permissões restritas
-            print(f"✅ Chave privada salva: {key_path} ({len(key_content)} bytes)")
+            # Decodificar cert.pem
+            try:
+                cert_content = base64.b64decode(cert_b64)
+                print(f"   Cert decodificado: {len(cert_content)} bytes")
+                
+                # Validar que é um certificado PEM válido
+                if not cert_content.startswith(b'-----BEGIN CERTIFICATE-----'):
+                    raise ValueError("Conteúdo decodificado não é um certificado PEM válido")
+                
+                cert_path.write_bytes(cert_content)
+                print(f"✅ Certificado salvo: {cert_path} ({len(cert_content)} bytes)")
+            except Exception as e:
+                print(f"❌ Erro ao processar CERTIFICATE_CERT_PEM: {e}")
+                raise
+            
+            # Decodificar key.pem  
+            try:
+                key_content = base64.b64decode(key_b64)
+                print(f"   Key decodificada: {len(key_content)} bytes")
+                
+                # Validar que é uma chave privada PEM válida
+                if not key_content.startswith(b'-----BEGIN'):
+                    raise ValueError("Conteúdo decodificado não é uma chave PEM válida")
+                
+                key_path.write_bytes(key_content)
+                os.chmod(key_path, 0o600)  # Permissões restritas
+                print(f"✅ Chave privada salva: {key_path} ({len(key_content)} bytes)")
+            except Exception as e:
+                print(f"❌ Erro ao processar CERTIFICATE_KEY_PEM: {e}")
+                raise
+            
+            # Testar carregamento
+            print("\n🔍 Testando carregamento dos certificados...")
+            try:
+                from cryptography import x509
+                from cryptography.hazmat.backends import default_backend
+                from cryptography.hazmat.primitives import serialization
+                
+                # Tentar carregar certificado
+                with open(cert_path, 'rb') as f:
+                    cert_data = f.read()
+                    cert = x509.load_pem_x509_certificate(cert_data, default_backend())
+                    print(f"✅ Certificado válido: {cert.subject}")
+                
+                # Tentar carregar chave
+                with open(key_path, 'rb') as f:
+                    key_data = f.read()
+                    key = serialization.load_pem_private_key(key_data, None, default_backend())
+                    print(f"✅ Chave privada válida")
+                    
+            except Exception as e:
+                print(f"⚠️ Aviso ao validar certificados: {e}")
+                # Não falha aqui, deixa o certificate_manager tratar
             
             return True
         except Exception as e:
