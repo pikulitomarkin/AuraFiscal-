@@ -834,10 +834,56 @@ def render_batch_emission():
                                 df_result = pd.DataFrame(resultados)
                                 st.dataframe(df_result, use_container_width=True)
                                 
-                                # Botão para ir ver as NFS-e emitidas
+                                # Gerar ZIP com os PDFs automaticamente
                                 if sucessos > 0:
                                     st.success(f"🎉 {sucessos} NFS-e emitidas com sucesso!")
-                                    st.info("💡 Acesse o menu 'NFS-e Emitidas' para baixar os arquivos XML e PDF")
+                                    
+                                    # Preparar ZIP com todos os PDFs do lote
+                                    try:
+                                        with st.spinner("📦 Preparando download automático dos PDFs..."):
+                                            # Coletar PDFs das notas emitidas no lote
+                                            pdf_files = []
+                                            for nfse in st.session_state.emitted_nfse[-sucessos:]:  # Pegar apenas as últimas emitidas
+                                                pdf_path = nfse.get('pdf_path')
+                                                if pdf_path and Path(pdf_path).exists():
+                                                    pdf_files.append(Path(pdf_path))
+                                            
+                                            if pdf_files:
+                                                # Criar ZIP em memória
+                                                import io
+                                                zip_buffer = io.BytesIO()
+                                                
+                                                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                                                    for pdf_path in pdf_files:
+                                                        zip_file.write(pdf_path, pdf_path.name)
+                                                
+                                                zip_buffer.seek(0)
+                                                
+                                                # Criar nome do arquivo com timestamp
+                                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                                zip_filename = f"nfse_lote_pdfs_{timestamp}.zip"
+                                                
+                                                st.success(f"✅ {len(pdf_files)} PDFs prontos para download!")
+                                                
+                                                # Botão de download automático
+                                                st.download_button(
+                                                    label=f"📥 Baixar {len(pdf_files)} PDFs (ZIP)",
+                                                    data=zip_buffer,
+                                                    file_name=zip_filename,
+                                                    mime="application/zip",
+                                                    use_container_width=True,
+                                                    type="primary"
+                                                )
+                                                
+                                                st.info("💡 **Dica:** O download foi preparado automaticamente. Clique no botão acima para salvar!")
+                                            else:
+                                                st.warning("⚠️ Nenhum arquivo PDF disponível para download")
+                                                st.info("💡 Acesse o menu 'NFS-e Emitidas' para visualizar todas as notas")
+                                    
+                                    except Exception as e:
+                                        st.error(f"❌ Erro ao preparar download: {e}")
+                                        app_logger.error(f"Erro ao preparar ZIP de PDFs: {e}", exc_info=True)
+                                        st.info("💡 Acesse o menu 'NFS-e Emitidas' para baixar os arquivos individualmente")
                 
                 else:
                     st.error("❌ Não foi possível extrair dados do PDF!")
