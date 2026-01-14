@@ -97,9 +97,11 @@ class NFSeXMLGenerator:
         SubElement(inf_dps, "tpAmb").text = "2" if self.ambiente.value == "HOMOLOGACAO" else "1"
         
         # 2. dhEmi - Data/Hora de Emissão
-        # Subtrai 5 segundos para garantir que não seja posterior ao processamento no servidor
+        # SEMPRE usar horário de Brasília (UTC-3) para evitar problemas com fuso horário do servidor
         from datetime import timedelta
-        now = datetime.now().astimezone() - timedelta(seconds=5)
+        import pytz
+        tz_brasilia = pytz.timezone('America/Sao_Paulo')
+        now = datetime.now(tz_brasilia) - timedelta(minutes=1)  # Subtrai 1 minuto de margem de segurança
         dh_emi = now.strftime("%Y-%m-%dT%H:%M:%S%z")
         if len(dh_emi) > 19:
             dh_emi = dh_emi[:-2] + ':' + dh_emi[-2:]

@@ -1,6 +1,7 @@
 # Core Framework
 streamlit==1.30.0
 python-dotenv==1.0.0
+pytz==2024.1  # Para fuso horário de Brasília
 
 # PDF Processing
 pdfplumber==0.10.3
