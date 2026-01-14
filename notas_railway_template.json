@@ -1,0 +1,13 @@
+[
+  {
+    "chave_acesso": "COLE_AQUI_A_CHAVE_DE_ACESSO_DA_NOTA",
+    "numero": "00001",
+    "data_emissao": "14/01/2026 10:30:00",
+    "tomador_nome": "Nome do Cliente",
+    "tomador_cpf": "123.456.789-00",
+    "valor": 100.00,
+    "iss": 5.00,
+    "xml_path": "",
+    "pdf_path": ""
+  }
+]
