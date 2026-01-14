@@ -12,10 +12,11 @@ print(f"PORT={port}")
 
 # Run certificate initialization
 print("📜 Inicializando certificados...")
-result = subprocess.run([sys.executable, "railway_init.py"], capture_output=True, text=True)
-print(result.stdout)
-if result.stderr:
-    print(result.stderr)
+print("="*60)
+result = subprocess.run([sys.executable, "railway_init.py"])
+print("="*60)
+print(f"✅ Inicialização de certificados concluída (exit code: {result.returncode})")
+print()
 
 # Start Streamlit
 print(f"🌐 Iniciando Streamlit na porta {port}...")
