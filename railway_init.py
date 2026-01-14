@@ -119,13 +119,22 @@ def main():
     if cert_ok:
         # Recarrega o certificate_manager após criar os arquivos
         try:
-            from src.utils.certificate import certificate_manager
-            if certificate_manager.reload():
-                print("✅ Certificate Manager recarregado com sucesso")
+            from src.utils.certificate import get_certificate_manager
+            cert_mgr = get_certificate_manager()
+            if cert_mgr._certificate is not None:
+                print("✅ Certificate Manager carregado com sucesso")
+                print(f"   Titular: {cert_mgr.get_subject_name()}")
             else:
-                print("⚠️ Certificate Manager não conseguiu recarregar certificado")
+                print("⚠️ Certificate Manager inicializado mas certificado não carregado")
+                print("   Tentando reload...")
+                if cert_mgr.reload():
+                    print("✅ Certificado recarregado após retry")
+                else:
+                    print("❌ Falha ao recarregar certificado")
         except Exception as e:
-            print(f"⚠️ Erro ao recarregar Certificate Manager: {e}")
+            print(f"⚠️ Erro ao carregar Certificate Manager: {e}")
+            import traceback
+            traceback.print_exc()
     else:
         print("\n❌ Falha na configuração de certificados")
         print("   O sistema pode não funcionar corretamente para emissão de NFS-e")

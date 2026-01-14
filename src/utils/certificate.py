@@ -305,5 +305,18 @@ class CertificateManager:
             os.close(key_fd)
 
 
-# Instância global (singleton)
-certificate_manager = CertificateManager()
+# Instância global (singleton) com lazy initialization
+_certificate_manager_instance = None
+
+def get_certificate_manager() -> CertificateManager:
+    """
+    Obtém a instância singleton do CertificateManager.
+    Usa lazy initialization para evitar carregar antes do railway_init.py.
+    """
+    global _certificate_manager_instance
+    if _certificate_manager_instance is None:
+        _certificate_manager_instance = CertificateManager()
+    return _certificate_manager_instance
+
+# Alias para compatibilidade com código legado (será chamado como função)
+certificate_manager = get_certificate_manager

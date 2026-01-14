@@ -19,7 +19,7 @@ from src.api.nfse_service import get_nfse_service
 from src.database.repository import NFSeRepository, LogRepository
 from src.models.schemas import ProcessingResult
 from src.utils.logger import app_logger
-from src.utils.certificate import certificate_manager
+from src.utils.certificate import get_certificate_manager
 
 
 # Configuração da página
@@ -112,9 +112,10 @@ def main_dashboard():
         st.markdown("---")
         
         # Informações do certificado
-        if certificate_manager.is_valid():
+        cert_mgr = get_certificate_manager()
+        if cert_mgr.is_valid():
             st.success("✅ Certificado Digital Válido")
-            info = certificate_manager.get_certificate_info()
+            info = cert_mgr.get_certificate_info()
             st.caption(f"Válido até: {info['valid_until'][:10]}")
         else:
             st.error("❌ Certificado Inválido ou Ausente")
@@ -432,8 +433,9 @@ def render_settings():
     with tab1:
         st.subheader("Certificado Digital A1")
         
-        if certificate_manager.is_valid():
-            info = certificate_manager.get_certificate_info()
+        cert_mgr = get_certificate_manager()
+        if cert_mgr.is_valid():
+            info = cert_mgr.get_certificate_info()
             
             st.success("✅ Certificado Digital Válido")
             

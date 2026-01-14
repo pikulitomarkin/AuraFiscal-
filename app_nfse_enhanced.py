@@ -24,7 +24,7 @@ from src.api.nfse_service import get_nfse_service
 from src.database.repository import NFSeRepository, LogRepository
 from src.models.schemas import ProcessingResult, PrestadorServico, TomadorServico, Servico
 from src.utils.logger import app_logger
-from src.utils.certificate import certificate_manager
+from src.utils.certificate import get_certificate_manager
 
 # Import das funções de emissão completa
 from emitir_nfse_completo import emitir_nfse_com_pdf
@@ -935,7 +935,7 @@ def render_settings():
     st.markdown("### 🔐 Certificado Digital")
     
     try:
-        cert_info = certificate_manager.get_certificate_info()
+        cert_info = get_certificate_manager().get_certificate_info()
         
         col1, col2 = st.columns(2)
         

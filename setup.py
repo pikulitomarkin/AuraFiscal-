@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from config.database import init_database, engine
 from config.settings import settings
 from src.utils.logger import app_logger
-from src.utils.certificate import certificate_manager
+from src.utils.certificate import get_certificate_manager
 
 
 async def initialize_database():
