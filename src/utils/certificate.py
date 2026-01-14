@@ -215,7 +215,7 @@ class CertificateManager:
             "issuer": issuer.get_attributes_for_oid(x509.NameOID.COMMON_NAME)[0].value if issuer.get_attributes_for_oid(x509.NameOID.COMMON_NAME) else "N/A",
             "issuer_cn": issuer.get_attributes_for_oid(x509.NameOID.COMMON_NAME)[0].value if issuer.get_attributes_for_oid(x509.NameOID.COMMON_NAME) else "N/A",
             "serial_number": str(self._certificate.serial_number),
-            "valid_from": self._certificate.not_valid_before_utc.isoformat(),
+            "valid_from": self._certificate.not_valid_before.replace(tzinfo=timezone.utc).isoformat(),
             "valid_until": not_after.isoformat(),
             "not_after": not_after.strftime("%d/%m/%Y %H:%M:%S"),
             "is_valid": self.is_valid(),
