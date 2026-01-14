@@ -118,6 +118,9 @@ nfse_*.pdf
 nfse_*.xml
 resultado_*.json
 
+# ==================== Arquivo de persistência (dados sensíveis) ====================
+nfse_emitidas.json
+
 # ==================== Arquivos de swagger/spec ====================
 swagger.html
 api-spec.json

@@ -11,6 +11,7 @@ import sys
 import os
 import base64
 from io import BytesIO
+import json
 
 # Adiciona diretório raiz ao path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -39,6 +40,34 @@ st.set_page_config(
 
 
 # ============================================================================
+# FUNÇÕES DE PERSISTÊNCIA DE DADOS
+# ============================================================================
+
+PERSISTENCE_FILE = Path("nfse_emitidas.json")
+
+def save_emitted_nfse():
+    """Salva as NFS-e emitidas em arquivo JSON."""
+    try:
+        with open(PERSISTENCE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(st.session_state.emitted_nfse, f, ensure_ascii=False, indent=2)
+        app_logger.info(f"Notas salvas: {len(st.session_state.emitted_nfse)} registros")
+    except Exception as e:
+        app_logger.error(f"Erro ao salvar notas: {e}")
+
+def load_emitted_nfse():
+    """Carrega as NFS-e emitidas do arquivo JSON."""
+    try:
+        if PERSISTENCE_FILE.exists():
+            with open(PERSISTENCE_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                app_logger.info(f"Notas carregadas: {len(data)} registros")
+                return data
+    except Exception as e:
+        app_logger.error(f"Erro ao carregar notas: {e}")
+    return []
+
+
+# ============================================================================
 # FUNÇÕES DE SESSÃO E AUTENTICAÇÃO
 # ============================================================================
 
@@ -53,7 +82,8 @@ def init_session_state():
     if 'page' not in st.session_state:
         st.session_state.page = 'login'
     if 'emitted_nfse' not in st.session_state:
-        st.session_state.emitted_nfse = []
+        # Carrega notas salvas do arquivo
+        st.session_state.emitted_nfse = load_emitted_nfse()
     if 'last_emission' not in st.session_state:
         st.session_state.last_emission = None
 
@@ -369,6 +399,9 @@ def render_single_emission():
                             
                             st.session_state.emitted_nfse.append(nfse_data)
                             st.session_state.last_emission = nfse_data
+                            
+                            # Salvar persistência
+                            save_emitted_nfse()
                             
                             # Exibir resultado
                             st.markdown("---")
@@ -719,6 +752,9 @@ def render_batch_emission():
                                             
                                             st.session_state.emitted_nfse.append(nfse_data)
                                             
+                                            # Salvar persistência após cada nota
+                                            save_emitted_nfse()
+                                            
                                             resultados.append({
                                                 'nome': record.get('nome'),
                                                 'cpf': record.get('cpf'),
@@ -982,6 +1018,8 @@ def render_settings():
         if st.button("🗑️ Limpar Histórico de Emissões", type="secondary"):
             st.session_state.emitted_nfse = []
             st.session_state.last_emission = None
+            # Salvar arquivo vazio
+            save_emitted_nfse()
             st.success("✅ Histórico limpo com sucesso!")
             st.rerun()
     
