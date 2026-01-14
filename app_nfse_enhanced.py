@@ -337,111 +337,112 @@ def render_single_emission():
             use_container_width=True,
             type="primary"
         )
-        
-        if submitted:
-            # Validação básica
-            if not tomador_cpf or not tomador_nome or not valor_servico:
-                st.error("❌ Preencha todos os campos obrigatórios (*)")
-            else:
-                # Preparar dados
-                prestador = PrestadorServico(
-                    cnpj='59418245000186',
-                    inscricao_municipal='8259069',
-                    razao_social='GABRIEL SALEH SERVICOS MEDICOS LTDA',
-                    logradouro='Rua Exemplo',
-                    numero='123',
-                    bairro='Centro',
-                    municipio='Florianopolis',
-                    uf='SC',
-                    cep='88010000'
-                )
-                
-                cpf_limpo = tomador_cpf.replace('.', '').replace('-', '').replace('/', '')
-                tomador = TomadorServico(
-                    cpf=cpf_limpo if len(cpf_limpo) == 11 else None,
-                    cnpj=cpf_limpo if len(cpf_limpo) == 14 else None,
-                    nome=tomador_nome,
-                    email=tomador_email if tomador_email else None,
-                    telefone=tomador_telefone if tomador_telefone else None
-                )
-                
-                # Adicionar hash do paciente na descrição (aparece na DANFSE)
-                descricao_final = hash_paciente if hash_paciente and hash_paciente.strip() else descricao_servico
-                
-                servico = Servico(
-                    valor_servico=valor_servico,
-                    aliquota_iss=aliquota_iss,
-                    item_lista_servico=item_lista,
-                    descricao=descricao_final,
-                    discriminacao=discriminacao if discriminacao else None
-                )
-                
-                # Emitir NFS-e
-                with st.spinner("⏳ Emitindo NFS-e... Por favor aguarde..."):
-                    try:
-                        resultado = asyncio.run(emitir_nfse_com_pdf(prestador, tomador, servico))
-                        
-                        if resultado['sucesso']:
-                            st.success("✅ NFS-e emitida com sucesso!")
-                            
-                            # Salvar na sessão
-                            nfse_data = {
-                                'chave_acesso': resultado['chave_acesso'],
-                                'numero': resultado.get('numero', 'N/A'),
-                                'data_emissao': datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                                'tomador_nome': tomador_nome,
-                                'tomador_cpf': tomador_cpf,
-                                'valor': valor_servico,
-                                'iss': valor_servico * (aliquota_iss / 100),
-                                'xml_path': resultado.get('xml_path'),
-                                'pdf_path': resultado.get('pdf_path'),
-                                'resultado_completo': resultado
-                            }
-                            
-                            st.session_state.emitted_nfse.append(nfse_data)
-                            st.session_state.last_emission = nfse_data
-                            
-                            # Salvar persistência
-                            save_emitted_nfse()
-                            
-                            # Exibir resultado
-                            st.markdown("---")
-                            st.markdown("### ✅ NFS-e Emitida com Sucesso!")
-                            
-                            col1, col2, col3 = st.columns(3)
-                            
-                            with col1:
-                                st.metric("Número", resultado.get('numero', 'N/A'))
-                            with col2:
-                                st.metric("Valor", f"R$ {valor_servico:,.2f}")
-                            with col3:
-                                st.metric("ISS", f"R$ {valor_servico * (aliquota_iss / 100):,.2f}")
-                            
-                            st.markdown(f"**🔑 Chave de Acesso:**")
-                            st.code(resultado['chave_acesso'], language=None)
-                            
-                            # Botões de download
-                            st.markdown("### 📥 Downloads")
-                            
-                            col_xml, col_pdf, col_space = st.columns([1, 1, 2])
-                            
-                            with col_xml:
-                                if resultado.get('xml_path'):
-                                    download_file_button(resultado['xml_path'], "📄 Baixar XML", key="single_xml")
-                            
-                            with col_pdf:
-                                if resultado.get('pdf_path'):
-                                    download_file_button(resultado['pdf_path'], "📑 Baixar PDF", key="single_pdf")
-                            
-                        else:
-                            st.error(f"❌ Erro na emissão: {resultado.get('mensagem', 'Erro desconhecido')}")
-                            if resultado.get('resultado'):
-                                with st.expander("🔍 Detalhes do Erro"):
-                                    st.json(resultado['resultado'])
+    
+    # Processar submissão FORA do form
+    if submitted:
+        # Validação básica
+        if not tomador_cpf or not tomador_nome or not valor_servico:
+            st.error("❌ Preencha todos os campos obrigatórios (*)")
+        else:
+            # Preparar dados
+            prestador = PrestadorServico(
+                cnpj='59418245000186',
+                inscricao_municipal='8259069',
+                razao_social='GABRIEL SALEH SERVICOS MEDICOS LTDA',
+                logradouro='Rua Exemplo',
+                numero='123',
+                bairro='Centro',
+                municipio='Florianopolis',
+                uf='SC',
+                cep='88010000'
+            )
+            
+            cpf_limpo = tomador_cpf.replace('.', '').replace('-', '').replace('/', '')
+            tomador = TomadorServico(
+                cpf=cpf_limpo if len(cpf_limpo) == 11 else None,
+                cnpj=cpf_limpo if len(cpf_limpo) == 14 else None,
+                nome=tomador_nome,
+                email=tomador_email if tomador_email else None,
+                telefone=tomador_telefone if tomador_telefone else None
+            )
+            
+            # Adicionar hash do paciente na descrição (aparece na DANFSE)
+            descricao_final = hash_paciente if hash_paciente and hash_paciente.strip() else descricao_servico
+            
+            servico = Servico(
+                valor_servico=valor_servico,
+                aliquota_iss=aliquota_iss,
+                item_lista_servico=item_lista,
+                descricao=descricao_final,
+                discriminacao=discriminacao if discriminacao else None
+            )
+            
+            # Emitir NFS-e
+            with st.spinner("⏳ Emitindo NFS-e... Por favor aguarde..."):
+                try:
+                    resultado = asyncio.run(emitir_nfse_com_pdf(prestador, tomador, servico))
                     
-                    except Exception as e:
-                        st.error(f"❌ Erro ao emitir NFS-e: {str(e)}")
-                        app_logger.error(f"Erro na emissão individual: {e}", exc_info=True)
+                    if resultado['sucesso']:
+                        st.success("✅ NFS-e emitida com sucesso!")
+                        
+                        # Salvar na sessão
+                        nfse_data = {
+                            'chave_acesso': resultado['chave_acesso'],
+                            'numero': resultado.get('numero', 'N/A'),
+                            'data_emissao': datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                            'tomador_nome': tomador_nome,
+                            'tomador_cpf': tomador_cpf,
+                            'valor': valor_servico,
+                            'iss': valor_servico * (aliquota_iss / 100),
+                            'xml_path': resultado.get('xml_path'),
+                            'pdf_path': resultado.get('pdf_path'),
+                            'resultado_completo': resultado
+                        }
+                        
+                        st.session_state.emitted_nfse.append(nfse_data)
+                        st.session_state.last_emission = nfse_data
+                        
+                        # Salvar persistência
+                        save_emitted_nfse()
+                        
+                        # Exibir resultado
+                        st.markdown("---")
+                        st.markdown("### ✅ NFS-e Emitida com Sucesso!")
+                        
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.metric("Número", resultado.get('numero', 'N/A'))
+                        with col2:
+                            st.metric("Valor", f"R$ {valor_servico:,.2f}")
+                        with col3:
+                            st.metric("ISS", f"R$ {valor_servico * (aliquota_iss / 100):,.2f}")
+                        
+                        st.markdown(f"**🔑 Chave de Acesso:**")
+                        st.code(resultado['chave_acesso'], language=None)
+                        
+                        # Botões de download (AGORA FORA DO FORM)
+                        st.markdown("### 📥 Downloads")
+                        
+                        col_xml, col_pdf, col_space = st.columns([1, 1, 2])
+                        
+                        with col_xml:
+                            if resultado.get('xml_path'):
+                                download_file_button(resultado['xml_path'], "📄 Baixar XML", key="single_xml")
+                        
+                        with col_pdf:
+                            if resultado.get('pdf_path'):
+                                download_file_button(resultado['pdf_path'], "📑 Baixar PDF", key="single_pdf")
+                        
+                    else:
+                        st.error(f"❌ Erro na emissão: {resultado.get('mensagem', 'Erro desconhecido')}")
+                        if resultado.get('resultado'):
+                            with st.expander("🔍 Detalhes do Erro"):
+                                st.json(resultado['resultado'])
+                
+                except Exception as e:
+                    st.error(f"❌ Erro ao emitir NFS-e: {str(e)}")
+                    app_logger.error(f"Erro na emissão individual: {e}", exc_info=True)
 
 
 # ============================================================================
