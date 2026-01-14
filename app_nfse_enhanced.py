@@ -1002,29 +1002,36 @@ def render_emitted_nfse_list():
                         st.error(f"❌ Erro ao gerar ZIP: {e}")
     
     with col3:
-        if st.button("🗑️ Limpar Histórico", type="secondary", use_container_width=True, key="clear_history", help="Remove todas as notas do histórico"):
-            if 'confirmar_limpeza' not in st.session_state:
-                st.session_state.confirmar_limpeza = False
-            
-            if not st.session_state.confirmar_limpeza:
-                st.session_state.confirmar_limpeza = True
-                st.warning("⚠️ Tem certeza? Clique novamente para confirmar!")
-                st.rerun()
-            else:
-                total_notas = len(st.session_state.emitted_nfse)
-                st.session_state.emitted_nfse = []
-                st.session_state.last_emission = None
-                st.session_state.confirmar_limpeza = False
-                # Salvar arquivo vazio
-                save_emitted_nfse()
-                st.success(f"✅ Histórico limpo! {total_notas} nota(s) removida(s).")
-                st.rerun()
-    
-    # Botão de cancelar confirmação
-    if st.session_state.get('confirmar_limpeza'):
-        if st.button("❌ Cancelar Limpeza", use_container_width=True, key="cancel_clear"):
+        # Inicializar estado de confirmação
+        if 'confirmar_limpeza' not in st.session_state:
             st.session_state.confirmar_limpeza = False
-            st.rerun()
+        
+        if not st.session_state.confirmar_limpeza:
+            # Primeiro clique - pedir confirmação
+            if st.button("🗑️ Limpar Histórico", type="secondary", use_container_width=True, key="clear_history", help="Remove todas as notas do histórico"):
+                st.session_state.confirmar_limpeza = True
+                st.rerun()
+        else:
+            # Segundo clique - confirmar ação
+            st.warning("⚠️ **TEM CERTEZA?** Esta ação não pode ser desfeita!")
+            
+            col_confirm, col_cancel = st.columns(2)
+            
+            with col_confirm:
+                if st.button("✅ Confirmar Limpeza", type="primary", use_container_width=True, key="confirm_clear"):
+                    total_notas = len(st.session_state.emitted_nfse)
+                    st.session_state.emitted_nfse = []
+                    st.session_state.last_emission = None
+                    st.session_state.confirmar_limpeza = False
+                    # Salvar arquivo vazio
+                    save_emitted_nfse()
+                    st.success(f"✅ Histórico limpo! {total_notas} nota(s) removida(s).")
+                    st.rerun()
+            
+            with col_cancel:
+                if st.button("❌ Cancelar", type="secondary", use_container_width=True, key="cancel_clear"):
+                    st.session_state.confirmar_limpeza = False
+                    st.rerun()
     
     st.markdown("---")
     
@@ -1235,30 +1242,36 @@ def render_settings():
     col1, col2 = st.columns(2)
     
     with col1:
-        # Melhorar botão de limpar histórico com confirmação
-        if st.button("🗑️ Limpar Histórico de Emissões", type="secondary", use_container_width=True, help="Remove todas as notas do histórico. Esta ação não pode ser desfeita!"):
-            if 'confirmar_limpeza' not in st.session_state:
-                st.session_state.confirmar_limpeza = False
-            
-            if not st.session_state.confirmar_limpeza:
-                st.session_state.confirmar_limpeza = True
-                st.warning("⚠️ Tem certeza? Clique novamente para confirmar!")
-                st.rerun()
-            else:
-                total_notas = len(st.session_state.emitted_nfse)
-                st.session_state.emitted_nfse = []
-                st.session_state.last_emission = None
-                st.session_state.confirmar_limpeza = False
-                # Salvar arquivo vazio
-                save_emitted_nfse()
-                st.success(f"✅ Histórico limpo! {total_notas} nota(s) removida(s).")
-                st.rerun()
+        # Inicializar estado de confirmação
+        if 'confirmar_limpeza_settings' not in st.session_state:
+            st.session_state.confirmar_limpeza_settings = False
         
-        # Resetar confirmação se usuário não confirmou
-        if st.session_state.get('confirmar_limpeza'):
-            if st.button("❌ Cancelar", use_container_width=True):
-                st.session_state.confirmar_limpeza = False
+        if not st.session_state.confirmar_limpeza_settings:
+            # Primeiro clique - pedir confirmação
+            if st.button("🗑️ Limpar Histórico de Emissões", type="secondary", use_container_width=True, key="clear_history_settings", help="Remove todas as notas do histórico"):
+                st.session_state.confirmar_limpeza_settings = True
                 st.rerun()
+        else:
+            # Segundo clique - confirmar ação
+            st.warning("⚠️ **TEM CERTEZA?** Esta ação não pode ser desfeita!")
+            
+            col_confirm, col_cancel = st.columns(2)
+            
+            with col_confirm:
+                if st.button("✅ Confirmar", type="primary", use_container_width=True, key="confirm_clear_settings"):
+                    total_notas = len(st.session_state.emitted_nfse)
+                    st.session_state.emitted_nfse = []
+                    st.session_state.last_emission = None
+                    st.session_state.confirmar_limpeza_settings = False
+                    # Salvar arquivo vazio
+                    save_emitted_nfse()
+                    st.success(f"✅ Histórico limpo! {total_notas} nota(s) removida(s).")
+                    st.rerun()
+            
+            with col_cancel:
+                if st.button("❌ Cancelar", type="secondary", use_container_width=True, key="cancel_clear_settings"):
+                    st.session_state.confirmar_limpeza_settings = False
+                    st.rerun()
     
     with col2:
         if st.button("🔄 Reiniciar Sessão", type="secondary"):
