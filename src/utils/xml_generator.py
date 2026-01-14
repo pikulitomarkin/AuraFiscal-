@@ -98,9 +98,8 @@ class NFSeXMLGenerator:
         
         # 2. dhEmi - Data/Hora de Emissão
         # SEMPRE usar horário de Brasília (UTC-3) para evitar problemas com fuso horário do servidor
-        from datetime import timedelta
-        import pytz
-        tz_brasilia = pytz.timezone('America/Sao_Paulo')
+        from datetime import timedelta, timezone
+        tz_brasilia = timezone(timedelta(hours=-3))
         now = datetime.now(tz_brasilia) - timedelta(minutes=1)  # Subtrai 1 minuto de margem de segurança
         dh_emi = now.strftime("%Y-%m-%dT%H:%M:%S%z")
         if len(dh_emi) > 19:

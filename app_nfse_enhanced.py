@@ -44,16 +44,22 @@ st.set_page_config(
 # FUNÇÕES DE PERSISTÊNCIA DE DADOS
 # ============================================================================
 
-PERSISTENCE_FILE = Path("nfse_emitidas.json")
+# Diretório de dados persistentes (Railway ou local)
+DATA_DIR = Path(os.getenv('RAILWAY_VOLUME_MOUNT_PATH', '.')) / 'data'
+DATA_DIR.mkdir(exist_ok=True)
+PERSISTENCE_FILE = DATA_DIR / "nfse_emitidas.json"
 
 def save_emitted_nfse():
     """Salva as NFS-e emitidas em arquivo JSON."""
     try:
+        # Garantir que o diretório existe
+        PERSISTENCE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        
         with open(PERSISTENCE_FILE, 'w', encoding='utf-8') as f:
             json.dump(st.session_state.emitted_nfse, f, ensure_ascii=False, indent=2)
-        app_logger.info(f"Notas salvas: {len(st.session_state.emitted_nfse)} registros")
+        app_logger.info(f"Notas salvas em {PERSISTENCE_FILE}: {len(st.session_state.emitted_nfse)} registros")
     except Exception as e:
-        app_logger.error(f"Erro ao salvar notas: {e}")
+        app_logger.error(f"Erro ao salvar notas em {PERSISTENCE_FILE}: {e}")
 
 def load_emitted_nfse():
     """Carrega as NFS-e emitidas do arquivo JSON."""
@@ -61,10 +67,12 @@ def load_emitted_nfse():
         if PERSISTENCE_FILE.exists():
             with open(PERSISTENCE_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                app_logger.info(f"Notas carregadas: {len(data)} registros")
+                app_logger.info(f"Notas carregadas de {PERSISTENCE_FILE}: {len(data)} registros")
                 return data
+        else:
+            app_logger.info(f"Arquivo {PERSISTENCE_FILE} não encontrado. Iniciando com lista vazia.")
     except Exception as e:
-        app_logger.error(f"Erro ao carregar notas: {e}")
+        app_logger.error(f"Erro ao carregar notas de {PERSISTENCE_FILE}: {e}")
     return []
 
 

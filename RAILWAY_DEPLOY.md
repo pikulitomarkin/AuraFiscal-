@@ -46,15 +46,32 @@ CERTIFICATE_PASSWORD=sua_senha
 
 # Banco de Dados (Railway cria automaticamente se adicionar PostgreSQL)
 DATABASE_URL=${{Postgres.DATABASE_URL}}
+
+# Volume Persistente (se configurado)
+RAILWAY_VOLUME_MOUNT_PATH=/app/data
 ```
 
-### Passo 4: Adicionar PostgreSQL (Opcional)
+### Passo 4: Configurar Volume Persistente
+
+⚠️ **IMPORTANTE**: Para manter o histórico de NFS-e entre deploys:
+
+1. No painel do Railway, clique em **Settings**
+2. Vá para a seção **Volumes**
+3. Clique em **+ New Volume**
+4. Configure:
+   - **Mount Path**: `/app/data`
+   - **Name**: `nfse-data`
+5. Salve as alterações
+
+Isso garantirá que o arquivo `nfse_emitidas.json` seja preservado mesmo após redeploy.
+
+### Passo 5: Adicionar PostgreSQL (Opcional)
 
 1. No projeto Railway, clique em "New"
 2. Selecione "Database" > "PostgreSQL"
 3. A variável `DATABASE_URL` será configurada automaticamente
 
-### Passo 5: Deploy
+### Passo 6: Deploy
 
 O Railway fará deploy automático a cada push no repositório.
 
@@ -94,6 +111,11 @@ Acompanhe os logs no painel do Railway:
 **Porta em uso:**
 - Railway define a porta automaticamente via $PORT
 - Não defina porta fixa no código
+
+**Histórico de notas sumindo:**
+- Configure um volume persistente em Settings > Volumes
+- Mount Path: `/app/data`
+- Sem volume, os dados são perdidos a cada deploy
 
 **Timeout:**
 - Aumente `healthcheckTimeout` se necessário
