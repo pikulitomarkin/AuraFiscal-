@@ -120,7 +120,8 @@ class GeradorDANFSE:
         )
         
         # Dados do QR Code: URL de consulta com a chave de acesso
-        url_consulta = f"https://www.nfse.gov.br/EmissorNacional/Notas/Consultar?chave={self.chave_acesso}"
+        # URL correta do Portal Nacional da NFS-e para consulta pública
+        url_consulta = f"https://dfe-portal.svrs.rs.gov.br/Nfse/ConsultaPublica?chave={self.chave_acesso}"
         qr.add_data(url_consulta)
         qr.make(fit=True)
         
@@ -376,6 +377,7 @@ def gerar_danfse(xml_path: str, output_path: str = None) -> str:
     Returns:
         Caminho do PDF gerado
     """
+    import os
     
     xml_file = Path(xml_path)
     
@@ -384,7 +386,16 @@ def gerar_danfse(xml_path: str, output_path: str = None) -> str:
     
     # Definir output_path se não fornecido
     if output_path is None:
-        output_path = xml_file.with_suffix('.pdf')
+        # Se estiver usando volume persistente, salvar no outputs/pdf
+        volume_path = os.getenv('RAILWAY_VOLUME_MOUNT_PATH')
+        if volume_path and '/outputs/xml/' in str(xml_file):
+            # XML está no volume, salvar PDF também no volume
+            pdf_dir = Path(volume_path) / "outputs" / "pdf"
+            pdf_dir.mkdir(parents=True, exist_ok=True)
+            output_path = pdf_dir / xml_file.with_suffix('.pdf').name
+        else:
+            # Salvar no mesmo diretório do XML
+            output_path = xml_file.with_suffix('.pdf')
     
     # Gerar PDF
     gerador = GeradorDANFSE(xml_path)
