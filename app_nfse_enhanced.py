@@ -918,7 +918,7 @@ def render_emitted_nfse_list():
         return
     
     # Filtros
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         filtro_nome = st.text_input("🔍 Filtrar por Nome", placeholder="Digite o nome...")
@@ -927,6 +927,29 @@ def render_emitted_nfse_list():
         filtro_cpf = st.text_input("🔍 Filtrar por CPF", placeholder="Digite o CPF...")
     
     with col3:
+        # Extrair meses disponíveis das notas
+        meses_disponiveis = set()
+        for nota in st.session_state.emitted_nfse:
+            try:
+                data_str = nota.get('data_emissao', '')
+                if data_str:
+                    # Formato: DD/MM/YYYY HH:MM:SS
+                    partes = data_str.split()
+                    if partes:
+                        data_parte = partes[0]
+                        mes_ano = '/'.join(data_parte.split('/')[-2:])
+                        meses_disponiveis.add(mes_ano)
+            except:
+                pass
+        
+        meses_ordenados = sorted(list(meses_disponiveis), key=lambda x: datetime.strptime(x, '%m/%Y'), reverse=True)
+        filtro_periodo = st.selectbox(
+            "📅 Filtrar por Período",
+            ["Todos"] + meses_ordenados,
+            help="Selecione o mês/ano para filtrar"
+        )
+    
+    with col4:
         ordem = st.selectbox("📊 Ordenar por", ["Mais Recentes", "Mais Antigas", "Maior Valor", "Menor Valor"])
     
     st.markdown("---")
@@ -939,6 +962,23 @@ def render_emitted_nfse_list():
     
     if filtro_cpf:
         nfse_list = [n for n in nfse_list if filtro_cpf in n.get('tomador_cpf', '')]
+    
+    # Filtrar por período
+    if filtro_periodo != "Todos":
+        nfse_filtradas = []
+        for n in nfse_list:
+            try:
+                data_str = n.get('data_emissao', '')
+                if data_str:
+                    partes = data_str.split()
+                    if partes:
+                        data_parte = partes[0]
+                        mes_ano = '/'.join(data_parte.split('/')[-2:])
+                        if mes_ano == filtro_periodo:
+                            nfse_filtradas.append(n)
+            except:
+                pass
+        nfse_list = nfse_filtradas
     
     if ordem == "Mais Recentes":
         nfse_list = list(reversed(nfse_list))
@@ -965,14 +1005,20 @@ def render_emitted_nfse_list():
     
     # Botões de ação em lote
     st.markdown("### 📦 Ações em Lote")
-    col1, col2, col3 = st.columns(3)
+    
+    # Mostrar quantas notas estão sendo exibidas vs total
+    if len(nfse_list) < len(st.session_state.emitted_nfse):
+        st.info(f"📊 Exibindo {len(nfse_list)} de {len(st.session_state.emitted_nfse)} notas (filtradas)")
+    
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("📥 Baixar Todos os PDFs", type="primary", use_container_width=True, key="bulk_pdf"):
-            if not st.session_state.emitted_nfse:
-                st.warning("⚠️ Nenhuma nota fiscal emitida para baixar")
+        label_pdf = f"📥 Baixar PDFs ({len(nfse_list)})" if len(nfse_list) < len(st.session_state.emitted_nfse) else "📥 Baixar Todos os PDFs"
+        if st.button(label_pdf, type="primary", use_container_width=True, key="bulk_pdf"):
+            if not nfse_list:
+                st.warning("⚠️ Nenhuma nota no filtro atual")
             else:
-                with st.spinner("📦 Gerando arquivo ZIP com todos os PDFs..."):
+                with st.spinner("📦 Gerando arquivo ZIP com os PDFs..."):
                     try:
                         import zipfile
                         from io import BytesIO
@@ -984,7 +1030,7 @@ def render_emitted_nfse_list():
                         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
                             pdfs_encontrados = 0
                             
-                            for nota in st.session_state.emitted_nfse:
+                            for nota in nfse_list:
                                 pdf_path = nota.get('pdf_path')
                                 if pdf_path and Path(pdf_path).exists():
                                     # Adicionar PDF ao ZIP
@@ -1013,11 +1059,12 @@ def render_emitted_nfse_list():
                         st.error(f"❌ Erro ao gerar ZIP: {e}")
     
     with col2:
-        if st.button("📄 Baixar Todos os XMLs", type="primary", use_container_width=True, key="bulk_xml"):
-            if not st.session_state.emitted_nfse:
-                st.warning("⚠️ Nenhuma nota fiscal emitida para baixar")
+        label_xml = f"📄 Baixar XMLs ({len(nfse_list)})" if len(nfse_list) < len(st.session_state.emitted_nfse) else "📄 Baixar Todos os XMLs"
+        if st.button(label_xml, type="primary", use_container_width=True, key="bulk_xml"):
+            if not nfse_list:
+                st.warning("⚠️ Nenhuma nota no filtro atual")
             else:
-                with st.spinner("📦 Gerando arquivo ZIP com todos os XMLs..."):
+                with st.spinner("📦 Gerando arquivo ZIP com os XMLs..."):
                     try:
                         import zipfile
                         from io import BytesIO
@@ -1029,7 +1076,7 @@ def render_emitted_nfse_list():
                         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
                             xmls_encontrados = 0
                             
-                            for nota in st.session_state.emitted_nfse:
+                            for nota in nfse_list:
                                 xml_path = nota.get('xml_path')
                                 if xml_path and Path(xml_path).exists():
                                     # Adicionar XML ao ZIP
@@ -1076,12 +1123,34 @@ def render_emitted_nfse_list():
             with col_confirm:
                 if st.button("✅ Confirmar Limpeza", type="primary", use_container_width=True, key="confirm_clear"):
                     total_notas = len(st.session_state.emitted_nfse)
+                    arquivos_removidos = 0
+                    
+                    # Remover arquivos físicos (XML e PDF)
+                    for nota in st.session_state.emitted_nfse:
+                        try:
+                            # Remover XML
+                            xml_path = nota.get('xml_path')
+                            if xml_path and Path(xml_path).exists():
+                                Path(xml_path).unlink()
+                                arquivos_removidos += 1
+                            
+                            # Remover PDF
+                            pdf_path = nota.get('pdf_path')
+                            if pdf_path and Path(pdf_path).exists():
+                                Path(pdf_path).unlink()
+                                arquivos_removidos += 1
+                        except Exception as e:
+                            app_logger.error(f"Erro ao remover arquivos: {e}")
+                    
+                    # Limpar dados da sessão
                     st.session_state.emitted_nfse = []
                     st.session_state.last_emission = None
                     st.session_state.confirmar_limpeza = False
+                    
                     # Salvar arquivo vazio
                     save_emitted_nfse()
-                    st.success(f"✅ Histórico limpo! {total_notas} nota(s) removida(s).")
+                    
+                    st.success(f"✅ Histórico limpo! {total_notas} nota(s) e {arquivos_removidos} arquivo(s) removidos.")
                     st.rerun()
             
             with col_cancel:
