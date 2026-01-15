@@ -918,7 +918,7 @@ def render_emitted_nfse_list():
         return
     
     # Filtros
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         filtro_nome = st.text_input("🔍 Filtrar por Nome", placeholder="Digite o nome...")
@@ -927,8 +927,32 @@ def render_emitted_nfse_list():
         filtro_cpf = st.text_input("🔍 Filtrar por CPF", placeholder="Digite o CPF...")
     
     with col3:
-        # Extrair meses disponíveis das notas
-        meses_disponiveis = set()
+        # Filtro por mês (independente do ano)
+        meses = {
+            "Todos": "Todos",
+            "01": "Janeiro",
+            "02": "Fevereiro",
+            "03": "Março",
+            "04": "Abril",
+            "05": "Maio",
+            "06": "Junho",
+            "07": "Julho",
+            "08": "Agosto",
+            "09": "Setembro",
+            "10": "Outubro",
+            "11": "Novembro",
+            "12": "Dezembro"
+        }
+        filtro_mes = st.selectbox(
+            "📅 Filtrar por Mês",
+            list(meses.keys()),
+            format_func=lambda x: meses[x],
+            help="Filtrar por mês (todos os anos)"
+        )
+    
+    with col4:
+        # Extrair períodos disponíveis das notas (mês/ano)
+        periodos_disponiveis = set()
         for nota in st.session_state.emitted_nfse:
             try:
                 data_str = nota.get('data_emissao', '')
@@ -938,18 +962,19 @@ def render_emitted_nfse_list():
                     if partes:
                         data_parte = partes[0]
                         mes_ano = '/'.join(data_parte.split('/')[-2:])
-                        meses_disponiveis.add(mes_ano)
+                        periodos_disponiveis.add(mes_ano)
             except:
                 pass
         
-        meses_ordenados = sorted(list(meses_disponiveis), key=lambda x: datetime.strptime(x, '%m/%Y'), reverse=True)
+        from datetime import datetime as dt
+        periodos_ordenados = sorted(list(periodos_disponiveis), key=lambda x: dt.strptime(x, '%m/%Y'), reverse=True)
         filtro_periodo = st.selectbox(
             "📅 Filtrar por Período",
-            ["Todos"] + meses_ordenados,
-            help="Selecione o mês/ano para filtrar"
+            ["Todos"] + periodos_ordenados,
+            help="Selecione o mês/ano específico"
         )
     
-    with col4:
+    with col5:
         ordem = st.selectbox("📊 Ordenar por", ["Mais Recentes", "Mais Antigas", "Maior Valor", "Menor Valor"])
     
     st.markdown("---")
@@ -963,7 +988,24 @@ def render_emitted_nfse_list():
     if filtro_cpf:
         nfse_list = [n for n in nfse_list if filtro_cpf in n.get('tomador_cpf', '')]
     
-    # Filtrar por período
+    # Filtrar por mês (independente do ano)
+    if filtro_mes != "Todos":
+        nfse_filtradas = []
+        for n in nfse_list:
+            try:
+                data_str = n.get('data_emissao', '')
+                if data_str:
+                    partes = data_str.split()
+                    if partes:
+                        data_parte = partes[0]
+                        mes = data_parte.split('/')[1]  # Extrai o mês (MM)
+                        if mes == filtro_mes:
+                            nfse_filtradas.append(n)
+            except:
+                pass
+        nfse_list = nfse_filtradas
+    
+    # Filtrar por período (mês/ano específico)
     if filtro_periodo != "Todos":
         nfse_filtradas = []
         for n in nfse_list:
