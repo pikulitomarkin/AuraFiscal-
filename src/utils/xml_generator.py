@@ -116,7 +116,9 @@ class NFSeXMLGenerator:
         SubElement(inf_dps, "nDPS").text = numero_dps_element
         
         # 6. dCompet - Data de Competência (AAAA-MM-DD)
-        SubElement(inf_dps, "dCompet").text = datetime.now().strftime("%Y-%m-%d")
+        # IMPORTANTE: Usar a mesma data base do dhEmi para evitar erro E0015
+        # (competência não pode ser posterior à emissão)
+        SubElement(inf_dps, "dCompet").text = now.strftime("%Y-%m-%d")
         
         # 7. tpEmit - Tipo de Emitente (1=Prestador)
         SubElement(inf_dps, "tpEmit").text = "1"
