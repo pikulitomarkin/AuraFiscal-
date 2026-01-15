@@ -45,8 +45,10 @@ st.set_page_config(
 # ============================================================================
 
 # Diretório de dados persistentes (Railway ou local)
-DATA_DIR = Path(os.getenv('RAILWAY_VOLUME_MOUNT_PATH', '.')) / 'data'
-DATA_DIR.mkdir(exist_ok=True)
+# Se RAILWAY_VOLUME_MOUNT_PATH existe, usa ele diretamente (já aponta para /app/data)
+# Senão, cria pasta 'data' no diretório local
+DATA_DIR = Path(os.getenv('RAILWAY_VOLUME_MOUNT_PATH', './data'))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 PERSISTENCE_FILE = DATA_DIR / "nfse_emitidas.json"
 
 def save_emitted_nfse():
