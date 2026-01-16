@@ -119,9 +119,8 @@ class GeradorDANFSE:
             border=2,
         )
         
-        # Dados do QR Code: URL de consulta com a chave de acesso
-        # URL correta do Portal Nacional da NFS-e para consulta pública
-        url_consulta = f"https://dfe-portal.svrs.rs.gov.br/Nfse/ConsultaPublica?chave={self.chave_acesso}"
+        # Dados do QR Code: URL oficial de consulta pública da NFS-e Nacional
+        url_consulta = f"https://www.nfse.gov.br/consultapublica?chave={self.chave_acesso}"
         qr.add_data(url_consulta)
         qr.make(fit=True)
         
