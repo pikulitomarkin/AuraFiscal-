@@ -499,7 +499,7 @@ class NFSeService:
         # Serviço
         servico = Servico(
             descricao=config_servico.get('descricao', 'Prestação de serviços'),
-            valor_servico=Decimal(str(config_servico.get('valor', 100.00))),
+            valor_servico=Decimal(str(config_servico.get('valor', 50.00))),
             aliquota_iss=Decimal(str(config_servico.get('aliquota_iss', 2.0))),
             item_lista_servico=config_servico.get('item_lista', '1.09'),
             discriminacao=config_servico.get('discriminacao', None)
