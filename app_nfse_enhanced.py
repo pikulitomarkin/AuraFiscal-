@@ -901,13 +901,14 @@ def render_batch_emission():
                                             })
                                         else:
                                             falhas += 1
-                                            logs.append(f"  ❌ Falha: {resultado.get('mensagem', 'Erro desconhecido')[:50]}")
+                                            msg_falha = resultado.get('mensagem') or resultado.get('erro') or 'Erro desconhecido'
+                                            logs.append(f"  ❌ Falha: {msg_falha[:180]}")
                                             log_text.code("\n".join(logs[-20:]))
                                             resultados.append({
                                                 'nome': record.get('nome'),
                                                 'cpf': record.get('cpf'),
                                                 'status': '❌ Falha',
-                                                'erro': resultado.get('mensagem', 'Erro desconhecido')
+                                                'erro': msg_falha
                                             })
                                     
                                     except Exception as e:

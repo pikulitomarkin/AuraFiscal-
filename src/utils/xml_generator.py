@@ -89,7 +89,7 @@ class NFSeXMLGenerator:
         numero_dps = str(self._dps_counter).zfill(15)  # 15 dígitos para o ID
         numero_dps_element = str(self._dps_counter)  # Número SEM zeros à esquerda para o elemento nDPS
         
-        id_dps = f"DPS4318002{1 if len(cnpj_prestador) == 11 else 2}{cnpj_prestador}{serie_dps}{numero_dps}"
+        id_dps = f"DPS4205407{1 if len(cnpj_prestador) == 11 else 2}{cnpj_prestador}{serie_dps}{numero_dps}"
         inf_dps.set("Id", id_dps)
         
         # ORDEM CORRETA CONFORME XSD v1.01:
@@ -124,7 +124,7 @@ class NFSeXMLGenerator:
         SubElement(inf_dps, "tpEmit").text = "1"
         
         # 8. cLocEmi - Código IBGE do município emissor
-        SubElement(inf_dps, "cLocEmi").text = "4318002"  # Santa Rosa-RS
+        SubElement(inf_dps, "cLocEmi").text = "4205407"  # Florianópolis-SC
         
         # 9. prest - Dados do Prestador
         prest_elem = SubElement(inf_dps, "prest")
@@ -157,9 +157,8 @@ class NFSeXMLGenerator:
         SubElement(parent, "CNPJ").text = prestador.cnpj
         
         # 2. IM - Inscrição Municipal
-        # Não informar se o município não possui informações no CNC NFS-e (erro E0120)
-        # if prestador.inscricao_municipal:
-        #     SubElement(parent, "IM").text = prestador.inscricao_municipal
+        if prestador.inscricao_municipal:
+            SubElement(parent, "IM").text = prestador.inscricao_municipal
         
         # 3. xNome - Razão Social - NÃO ENVIAR quando prestador é o emitente (E0121)
         # SubElement(parent, "xNome").text = prestador.razao_social
@@ -176,9 +175,11 @@ class NFSeXMLGenerator:
         # 5. regTrib - Regimes Tributários (obrigatório)
         reg_trib = SubElement(parent, "regTrib")
         # opSimpNac: 1=Não optante, 2=Optante SN, 3=MEI
-        # CNPJ 05.863.340/0001-60 validado pela Receita Federal como MEI (E0041)
+        # Prestador Gabriel Saleh (CNPJ 59.418.245/0001-86) — regime validado em produção
         SubElement(reg_trib, "opSimpNac").text = "3"  # 3=MEI
-        # regApTribSN: não enviado para MEI (apenas para Optante SN)
+        # regApTribSN - Regime de Apuração dos Tributos do SN (obrigatório para optante SN/MEI)
+        # 1=Caixa, 2=Competência
+        SubElement(reg_trib, "regApTribSN").text = "2"  # 2=Competência
         SubElement(reg_trib, "regEspTrib").text = "0"  # 0=Nenhum
     
     def _add_tomador_v101(self, parent: Element, tomador: TomadorServico):
@@ -198,7 +199,7 @@ class NFSeXMLGenerator:
         
         # 1. locPrest - Local da Prestação
         loc_prest = SubElement(parent, "locPrest")
-        SubElement(loc_prest, "cLocPrestacao").text = "4318002"  # Santa Rosa-RS
+        SubElement(loc_prest, "cLocPrestacao").text = "4205407"  # Florianópolis-SC
         
         # 2. cServ - Elemento container para códigos e descrição do serviço
         c_serv_elem = SubElement(parent, "cServ")
