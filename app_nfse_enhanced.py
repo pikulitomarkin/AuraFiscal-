@@ -90,6 +90,9 @@ st.set_page_config(
 DATA_DIR = Path(os.getenv('RAILWAY_VOLUME_MOUNT_PATH', './data'))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 PERSISTENCE_FILE = DATA_DIR / "nfse_emitidas.json"
+APP_CONFIG_FILE = DATA_DIR / "app_config.json"
+DEFAULT_VALOR_EMISSAO_LOTE = float(getattr(settings, 'VALOR_EMISSAO_LOTE', 50.00))
+
 
 def save_emitted_nfse():
     """Salva as NFS-e emitidas em arquivo JSON."""
@@ -118,6 +121,44 @@ def load_emitted_nfse():
     return []
 
 
+def load_app_config() -> Dict[str, Any]:
+    """Carrega configurações persistentes da aplicação (ex.: valor do lote)."""
+    defaults = {"valor_emissao_lote": DEFAULT_VALOR_EMISSAO_LOTE}
+    try:
+        if APP_CONFIG_FILE.exists():
+            with open(APP_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                return defaults
+            valor = data.get("valor_emissao_lote", DEFAULT_VALOR_EMISSAO_LOTE)
+            try:
+                valor = float(valor)
+                if valor <= 0:
+                    valor = DEFAULT_VALOR_EMISSAO_LOTE
+            except (TypeError, ValueError):
+                valor = DEFAULT_VALOR_EMISSAO_LOTE
+            return {"valor_emissao_lote": valor}
+    except Exception as e:
+        app_logger.error(f"Erro ao carregar config em {APP_CONFIG_FILE}: {e}")
+    return defaults
+
+
+def save_app_config():
+    """Persiste configurações da aplicação (valor de emissão do lote)."""
+    try:
+        APP_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "valor_emissao_lote": float(
+                st.session_state.get("valor_emissao_lote", DEFAULT_VALOR_EMISSAO_LOTE)
+            )
+        }
+        with open(APP_CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        app_logger.info(f"Config salva em {APP_CONFIG_FILE}: {payload}")
+    except Exception as e:
+        app_logger.error(f"Erro ao salvar config em {APP_CONFIG_FILE}: {e}")
+
+
 # ============================================================================
 # FUNÇÕES DE SESSÃO E AUTENTICAÇÃO
 # ============================================================================
@@ -137,6 +178,8 @@ def init_session_state():
         st.session_state.emitted_nfse = load_emitted_nfse()
     if 'last_emission' not in st.session_state:
         st.session_state.last_emission = None
+    if 'valor_emissao_lote' not in st.session_state:
+        st.session_state.valor_emissao_lote = load_app_config()["valor_emissao_lote"]
 
 
 def login_page():
@@ -534,24 +577,39 @@ def render_batch_emission():
                         
                         registros_sem_valor = sum(1 for r in valid_records if not r.get('valor'))
                         if registros_sem_valor > 0:
-                            st.warning(f"⚠️ **{registros_sem_valor} registro(s)** sem valor no PDF. Para esses, será usado o valor padrão configurado abaixo.")
+                            st.info(
+                                f"ℹ️ **{registros_sem_valor} registro(s)** sem valor no PDF. "
+                                "Todas as notas do lote usarão o valor fixo configurado abaixo."
+                            )
                         else:
-                            st.success("✅ Valor extraído do PDF para todos os registros. O valor do formulário abaixo será usado apenas como fallback.")
+                            st.info(
+                                "ℹ️ Valores encontrados no PDF serão ignorados: "
+                                "todas as notas do lote usarão o valor fixo configurado abaixo."
+                            )
                     
                     # Configuração do serviço
                     st.markdown("### 3️⃣ Configuração do Serviço")
+                    st.caption(
+                        "O valor de emissão é **fixo para todo o lote**. "
+                        "Altere abaixo quando precisar; o padrão configurado é "
+                        f"R$ {st.session_state.valor_emissao_lote:,.2f}."
+                    )
                     
                     with st.form("batch_config_form"):
                         col1, col2 = st.columns(2)
                         
                         with col1:
                             valor_servico = st.number_input(
-                                "💰 Valor Padrão/Fallback (R$) *",
+                                "💰 Valor de emissão do lote (R$) *",
                                 min_value=0.01,
-                                value=89.00,
+                                value=float(st.session_state.valor_emissao_lote),
                                 step=1.00,
                                 format="%.2f",
-                                help="Usado apenas quando o PDF não contiver valor. Se o PDF tiver valor, ele será prioritário."
+                                help=(
+                                    "Valor fixo aplicado a todas as NFS-e deste lote. "
+                                    "Altere aqui sempre que precisar. O padrão também pode "
+                                    "ser ajustado em Configurações."
+                                )
                             )
                             
                             aliquota_iss = st.number_input(
@@ -608,9 +666,9 @@ def render_batch_emission():
                             st.metric("Registros", min(limite_lote, len(valid_records)))
                         
                         with col2:
-                            # Calcula valor total usando o valor do PDF de cada registro ou o valor padrão
+                            # Todas as notas usam o valor fixo do formulário
                             registros_resumo = valid_records[:min(limite_lote, len(valid_records))]
-                            valor_total = sum(r.get('valor') or valor_servico for r in registros_resumo)
+                            valor_total = valor_servico * len(registros_resumo)
                             st.metric("Valor Total", f"R$ {valor_total:,.2f}")
                         
                         with col3:
@@ -618,8 +676,7 @@ def render_batch_emission():
                             st.metric("ISS Total", f"R$ {iss_total:,.2f}")
                         
                         with col4:
-                            com_valor_pdf = sum(1 for r in registros_resumo if r.get('valor'))
-                            st.metric("Com valor do PDF", f"{com_valor_pdf}/{len(registros_resumo)}")
+                            st.metric("Valor por nota", f"R$ {valor_servico:,.2f}")
                         
                         st.markdown("---")
                         
@@ -633,6 +690,10 @@ def render_batch_emission():
                             if not valid_records:
                                 st.error("❌ Nenhum registro válido encontrado!")
                             else:
+                                # Persistir o valor usado neste lote como novo padrão
+                                st.session_state.valor_emissao_lote = float(valor_servico)
+                                save_app_config()
+
                                 # Limitar registros ao limite do lote
                                 records_to_process = valid_records[:limite_lote]
                                 
@@ -775,9 +836,9 @@ def render_batch_emission():
                                             else:
                                                 discriminacao_com_hash = f"Hash do Paciente: {hash_paciente}"
                                         
-                                        # Serviço — usa o valor do PDF; se não disponível, usa o valor padrão do formulário
-                                        valor_nota = record.get('valor') or valor_servico
-                                        app_logger.info(f"[{idx+1}] Criando objeto Servico (valor={valor_nota}, fonte={'PDF' if record.get('valor') else 'formulário'})...")
+                                        # Serviço — valor fixo do lote (configurável no formulário)
+                                        valor_nota = float(valor_servico)
+                                        app_logger.info(f"[{idx+1}] Criando objeto Servico (valor={valor_nota}, fonte=valor fixo do lote)...")
                                         servico_obj = Servico(
                                             valor_servico=valor_nota,
                                             aliquota_iss=aliquota_iss,
@@ -1354,6 +1415,32 @@ def render_settings():
     with col2:
         st.markdown(f"**Timeout:** {getattr(settings, 'NFSE_API_TIMEOUT', 30)}s")
         st.markdown(f"**Max Retries:** {getattr(settings, 'NFSE_API_MAX_RETRIES', 3)}")
+    
+    st.markdown("---")
+    
+    # Valor de emissão em lote
+    st.markdown("### 💰 Valor de Emissão em Lote")
+    st.markdown(
+        "Todas as NFS-e emitidas em lote usam este valor fixo. "
+        "Altere aqui para definir o padrão; na tela de emissão em lote você ainda "
+        "pode ajustar o valor antes de processar."
+    )
+    
+    with st.form("valor_lote_config_form"):
+        novo_valor_lote = st.number_input(
+            "Valor fixo por nota (R$)",
+            min_value=0.01,
+            value=float(st.session_state.valor_emissao_lote),
+            step=1.00,
+            format="%.2f",
+            help="Padrão inicial: R$ 50,00. Este valor é aplicado a todas as notas do lote."
+        )
+        salvar_valor = st.form_submit_button("💾 Salvar valor do lote", use_container_width=True, type="primary")
+        
+        if salvar_valor:
+            st.session_state.valor_emissao_lote = float(novo_valor_lote)
+            save_app_config()
+            st.success(f"✅ Valor de emissão em lote atualizado para R$ {novo_valor_lote:,.2f}")
     
     st.markdown("---")
     

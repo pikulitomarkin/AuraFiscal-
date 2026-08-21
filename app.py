@@ -277,10 +277,12 @@ def render_new_emission():
                         
                         with col1:
                             valor = st.number_input(
-                                "Valor do Serviço (R$)",
+                                "Valor de emissão do lote (R$)",
                                 min_value=0.01,
-                                value=100.00,
-                                step=10.00
+                                value=float(getattr(settings, 'VALOR_EMISSAO_LOTE', 50.00)),
+                                step=1.00,
+                                format="%.2f",
+                                help="Valor fixo aplicado a todas as NFS-e deste lote. Altere quando precisar."
                             )
                             
                             aliquota_iss = st.number_input(
