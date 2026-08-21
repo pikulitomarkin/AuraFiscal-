@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     MAX_BATCH_SIZE: int = 600
     MIN_BATCH_SIZE: int = 1
     CONCURRENT_REQUESTS: int = 10
-    # Valor fixo aplicado a todas as NFS-e emitidas em lote (pode ser alterado na UI)
+    # Valor fixo aplicado a todas as NFS-e emitidas em lote (alterável na UI)
     VALOR_EMISSAO_LOTE: float = 50.00
     
     # Logs

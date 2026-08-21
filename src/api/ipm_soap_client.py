@@ -59,23 +59,6 @@ class IPMSoapClient:
 
         return self._parse_resposta(raw_text)
 
-    async def baixar_pdf(self, link_nfse: str) -> bytes:
-        """
-        Baixa o PDF da NFS-e a partir do link retornado pelo IPM.
-        Tenta sem auth primeiro; se falhar, usa Basic Auth.
-        """
-        app_logger.info(f"IPM: baixando PDF → {link_nfse}")
-        auth = (self.usuario, self.senha)
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            resp = await client.get(link_nfse)
-            if resp.status_code == 200 and resp.content:
-                return resp.content
-            # Segunda tentativa com Basic Auth
-            resp = await client.get(link_nfse, auth=auth)
-            if resp.status_code == 200 and resp.content:
-                return resp.content
-            raise RuntimeError(f"HTTP {resp.status_code} ao baixar PDF")
-
     def _parse_resposta(self, xml_text: str) -> dict:
         """Extrai dados do XML de retorno IPM (encoding ISO-8859-1)."""
         # Remove a declaração XML de encoding para não conflitar com o parse

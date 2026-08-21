@@ -350,7 +350,6 @@ class NFSeService:
                     valor=float(config_servico.get("valor", 0)),
                     aliquota_iss=float(config_servico.get("aliquota_iss", 2.6011)),
                     codigo_servico=config_servico.get("item_lista", "40303"),
-                    nbs=config_servico.get("nbs", "1.2301.21.00"),
                     codigo_municipio="4318002",
                     bairro_tomador=registro.get("bairro", "NAO INFORMADO"),
                     cep_tomador=registro.get("cep", "00000000"),
@@ -374,8 +373,7 @@ class NFSeService:
                 else:
                     numero = resposta.get("numero_nfse")
                     chave = resposta.get("chave")
-                    link = resposta.get("link")
-                    app_logger.info(f"IPM sucesso [{registro.get('hash')}]: NFS-e {numero} | Chave: {chave} | Link: {link}")
+                    app_logger.info(f"IPM sucesso [{registro.get('hash')}]: NFS-e {numero} | Chave: {chave}")
                     results.append(ProcessingResult(
                         hash_transacao=registro.get("hash", "N/A"),
                         cpf_tomador=registro.get("cpf", "N/A"),
@@ -383,7 +381,6 @@ class NFSeService:
                         status="sucesso",
                         numero_nfse=numero,
                         protocolo=chave,
-                        link_nfse=link,
                         mensagem=f"Emitida - NFS-e {numero}",
                         timestamp=datetime.now(),
                     ))
@@ -499,7 +496,7 @@ class NFSeService:
         # Serviço
         servico = Servico(
             descricao=config_servico.get('descricao', 'Prestação de serviços'),
-            valor_servico=Decimal(str(config_servico.get('valor', 50.00))),
+            valor_servico=Decimal(str(config_servico.get('valor', 100.00))),
             aliquota_iss=Decimal(str(config_servico.get('aliquota_iss', 2.0))),
             item_lista_servico=config_servico.get('item_lista', '1.09'),
             discriminacao=config_servico.get('discriminacao', None)

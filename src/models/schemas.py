@@ -267,7 +267,7 @@ class NFSeResponse(BaseModel):
 
 class ProcessingResult(BaseModel):
     """Resultado do processamento em lote."""
-
+    
     hash_transacao: str
     cpf_tomador: str
     nome_tomador: str
@@ -275,5 +275,4 @@ class ProcessingResult(BaseModel):
     numero_nfse: Optional[str] = None
     protocolo: Optional[str] = None
     mensagem: Optional[str] = None
-    link_nfse: Optional[str] = None  # URL do PDF na prefeitura (IPM)
     timestamp: datetime = Field(default_factory=datetime.now)

@@ -8,11 +8,8 @@ Blocos obrigatórios para nova emissão:
   <nf>   - dados da NFS-e (SEM <situacao> para nova emissão; apenas para cancelamento usa <situacao>C</situacao>)
   <prestador>, <tomador>, <itens>
 """
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from typing import Optional
-
-# Fuso horário de Brasília (UTC-3) — usado para data/hora do fato gerador
-BRT = timezone(timedelta(hours=-3))
 
 
 # TOM code para Santa Rosa-RS (código de município IPM, não IBGE)
@@ -56,7 +53,6 @@ class RPSXMLGenerator:
         valor: float,
         aliquota_iss: float,
         codigo_servico: str = "40303",
-        nbs: str = "1.2301.21.00",  # NBS: Serviços de clínica médica
         codigo_municipio: str = "4318002",  # IBGE (não usado internamente, usa TOM)
         cidade_tomador: str = CIDADE_SANTA_ROSA_TOM,
         bairro_tomador: str = "NAO INFORMADO",
@@ -68,7 +64,7 @@ class RPSXMLGenerator:
         Estrutura validada contra o servidor: <rps> + <nf> (sem <situacao>) + <prestador> + <tomador> + <itens>.
         """
         nfse_teste = "1" if self.ambiente_teste else "0"
-        agora = datetime.now(BRT)  # Sempre horário de Brasília (UTC-3)
+        agora = datetime.now()
         data_str = agora.strftime("%d/%m/%Y")
         hora_str = agora.strftime("%H:%M:%S")
 
@@ -128,7 +124,6 @@ class RPSXMLGenerator:
     <lista>
       <codigo_local_prestacao_servico>{CIDADE_SANTA_ROSA_TOM}</codigo_local_prestacao_servico>
       <codigo_item_lista_servico>{codigo_servico}</codigo_item_lista_servico>
-      <codigo_nbs>{nbs}</codigo_nbs>
       <descritivo>{descricao}</descritivo>
       <aliquota_item_lista_servico>{aliquota_fmt}</aliquota_item_lista_servico>
       <situacao_tributaria>00</situacao_tributaria>

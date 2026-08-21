@@ -30,46 +30,8 @@ from src.models.schemas import ProcessingResult, PrestadorServico, TomadorServic
 from src.utils.logger import app_logger
 from src.utils.certificate import get_certificate_manager
 
-# IPM: emissão via Atende.Net (Basic Auth — certificado não necessário para envio)
-from src.api.ipm_soap_client import IPMSoapClient as _IPMSoapClient
-
-
-def _gerar_zip_pdfs_ipm(links_nfse: list) -> tuple:
-    """
-    Baixa PDFs das NFS-e a partir dos link_nfse retornados pelo IPM e gera ZIP em memória.
-
-    Args:
-        links_nfse: lista de (nome_tomador, numero_nfse, link_url)
-
-    Returns:
-        (BytesIO com o ZIP, int com quantidade de PDFs baixados com sucesso)
-    """
-    import io
-    client = _IPMSoapClient()
-    zip_buffer = io.BytesIO()
-    baixados = 0
-    erros = []
-
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for i, (nome, numero, link) in enumerate(links_nfse, 1):
-            if not link:
-                erros.append(f"#{i} {nome}: link não disponível")
-                continue
-            try:
-                pdf_bytes = asyncio.run(client.baixar_pdf(link))
-                nome_arquivo = f"nfse_{numero or i:03}_{re.sub(r'[^A-Za-z0-9]', '_', nome)[:20]}.pdf"
-                zf.writestr(nome_arquivo, pdf_bytes)
-                baixados += 1
-                app_logger.info(f"PDF baixado: {nome_arquivo} ({len(pdf_bytes)} bytes)")
-            except Exception as e:
-                erros.append(f"#{i} {nome}: {e}")
-                app_logger.warning(f"Não foi possível baixar PDF de {link}: {e}")
-
-    if erros:
-        app_logger.warning(f"PDFs não baixados ({len(erros)}): {erros}")
-
-    zip_buffer.seek(0)
-    return zip_buffer, baixados, erros
+# Import das funções de emissão completa
+from emitir_nfse_completo import emitir_nfse_com_pdf
 
 # Configuração da página
 st.set_page_config(
@@ -92,7 +54,6 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 PERSISTENCE_FILE = DATA_DIR / "nfse_emitidas.json"
 APP_CONFIG_FILE = DATA_DIR / "app_config.json"
 DEFAULT_VALOR_EMISSAO_LOTE = float(getattr(settings, 'VALOR_EMISSAO_LOTE', 50.00))
-
 
 def save_emitted_nfse():
     """Salva as NFS-e emitidas em arquivo JSON."""
@@ -122,7 +83,7 @@ def load_emitted_nfse():
 
 
 def load_app_config() -> Dict[str, Any]:
-    """Carrega configurações persistentes da aplicação (ex.: valor do lote)."""
+    """Carrega configurações persistentes (valor de emissão do lote)."""
     defaults = {"valor_emissao_lote": DEFAULT_VALOR_EMISSAO_LOTE}
     try:
         if APP_CONFIG_FILE.exists():
@@ -130,9 +91,8 @@ def load_app_config() -> Dict[str, Any]:
                 data = json.load(f)
             if not isinstance(data, dict):
                 return defaults
-            valor = data.get("valor_emissao_lote", DEFAULT_VALOR_EMISSAO_LOTE)
             try:
-                valor = float(valor)
+                valor = float(data.get("valor_emissao_lote", DEFAULT_VALOR_EMISSAO_LOTE))
                 if valor <= 0:
                     valor = DEFAULT_VALOR_EMISSAO_LOTE
             except (TypeError, ValueError):
@@ -144,7 +104,7 @@ def load_app_config() -> Dict[str, Any]:
 
 
 def save_app_config():
-    """Persiste configurações da aplicação (valor de emissão do lote)."""
+    """Persiste o valor de emissão do lote."""
     try:
         APP_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -293,8 +253,13 @@ def render_overview():
                     st.markdown(f"**ISS:** R$ {nfse.get('iss', 0):,.2f}")
                     
                     # Botões de download
-                    if nfse.get('link_nfse'):
-                        st.link_button("📄 PDF da NFS-e (Prefeitura)", nfse['link_nfse'])
+                    col_xml, col_pdf = st.columns(2)
+                    with col_xml:
+                        if nfse.get('xml_path'):
+                            download_file_button(nfse['xml_path'], "📄 XML", key=f"xml_{nfse['chave_acesso']}")
+                    with col_pdf:
+                        if nfse.get('pdf_path'):
+                            download_file_button(nfse['pdf_path'], "📑 PDF", key=f"pdf_{nfse['chave_acesso']}")
     else:
         st.info("ℹ️ Nenhuma NFS-e emitida ainda")
 
@@ -387,8 +352,8 @@ def render_single_emission():
         with col3:
             item_lista = st.text_input(
                 "Item Lista LC 116/2003 *",
-                value="40303",
-                help="Código IPM do serviço (5 dígitos, sem pontos). Ex: 40303 = Clínicas, sanatórios e congêneres"
+                value="04.01.01",
+                help="Código do serviço conforme Lista LC 116/2003"
             )
         
         descricao_servico = st.text_area(
@@ -432,75 +397,105 @@ def render_single_emission():
         if not tomador_cpf or not tomador_nome or not valor_servico:
             st.error("❌ Preencha todos os campos obrigatórios (*)")
         else:
+            # Preparar dados
+            prestador = PrestadorServico(
+                cnpj='59418245000186',
+                inscricao_municipal='8259069',
+                razao_social='GABRIEL SALEH SERVICOS MEDICOS LTDA',
+                logradouro='Rua Exemplo',
+                numero='123',
+                bairro='Centro',
+                municipio='Florianopolis',
+                uf='SC',
+                cep='88010000'
+            )
+            
             cpf_limpo = tomador_cpf.replace('.', '').replace('-', '').replace('/', '')
-
-            registro_ipm = {
-                "cpf": cpf_limpo,
-                "nome": tomador_nome,
-                "hash": hash_paciente or "",
-                "bairro": tomador_bairro or "NAO INFORMADO",
-                "cep": (tomador_cep or "").replace("-", "") or "00000000",
-                "logradouro": tomador_logradouro or "NAO INFORMADO",
-            }
-            config_ipm = {
-                "valor": valor_servico,
-                "aliquota_iss": aliquota_iss,
-                "item_lista": item_lista.replace(".", ""),
-                "descricao": hash_paciente if hash_paciente and hash_paciente.strip() else descricao_servico,
-            }
-
-            with st.spinner("⏳ Emitindo NFS-e via IPM/Atende.Net... Por favor aguarde..."):
+            tomador = TomadorServico(
+                cpf=cpf_limpo if len(cpf_limpo) == 11 else None,
+                cnpj=cpf_limpo if len(cpf_limpo) == 14 else None,
+                nome=tomador_nome,
+                email=tomador_email if tomador_email else None,
+                telefone=tomador_telefone if tomador_telefone else None
+            )
+            
+            # Adicionar hash do paciente na descrição (aparece na DANFSE)
+            descricao_final = hash_paciente if hash_paciente and hash_paciente.strip() else descricao_servico
+            
+            servico = Servico(
+                valor_servico=valor_servico,
+                aliquota_iss=aliquota_iss,
+                item_lista_servico=item_lista,
+                descricao=descricao_final,
+                discriminacao=discriminacao if discriminacao else None
+            )
+            
+            # Emitir NFS-e
+            with st.spinner("⏳ Emitindo NFS-e... Por favor aguarde..."):
                 try:
-                    ipm_results = asyncio.run(
-                        get_nfse_service().emitir_nfse_lote_ipm([registro_ipm], config_ipm)
-                    )
-                    ipm_r = ipm_results[0]
-                    sucesso = ipm_r.status == "sucesso"
-
-                    if sucesso:
+                    resultado = asyncio.run(emitir_nfse_com_pdf(prestador, tomador, servico))
+                    
+                    if resultado['sucesso']:
                         st.success("✅ NFS-e emitida com sucesso!")
-
+                        
+                        # Salvar na sessão
                         nfse_data = {
-                            'chave_acesso': ipm_r.protocolo or ipm_r.numero_nfse or 'N/A',
-                            'numero': ipm_r.numero_nfse or 'N/A',
+                            'chave_acesso': resultado['chave_acesso'],
+                            'numero': resultado.get('numero', 'N/A'),
                             'data_emissao': datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
                             'tomador_nome': tomador_nome,
                             'tomador_cpf': tomador_cpf,
                             'valor': valor_servico,
                             'iss': valor_servico * (aliquota_iss / 100),
-                            'xml_path': None,
-                            'pdf_path': None,
-                            'link_nfse': ipm_r.link_nfse,
+                            'xml_path': resultado.get('xml_path'),
+                            'pdf_path': resultado.get('pdf_path'),
+                            'resultado_completo': resultado
                         }
-
+                        
                         st.session_state.emitted_nfse.append(nfse_data)
                         st.session_state.last_emission = nfse_data
+                        
+                        # Salvar persistência
                         save_emitted_nfse()
-
+                        
+                        # Exibir resultado
                         st.markdown("---")
                         st.markdown("### ✅ NFS-e Emitida com Sucesso!")
-
+                        
                         col1, col2, col3 = st.columns(3)
+                        
                         with col1:
-                            st.metric("Número", ipm_r.numero_nfse or 'N/A')
+                            st.metric("Número", resultado.get('numero', 'N/A'))
                         with col2:
                             st.metric("Valor", f"R$ {valor_servico:,.2f}")
                         with col3:
                             st.metric("ISS", f"R$ {valor_servico * (aliquota_iss / 100):,.2f}")
-
-                        st.markdown("**🔑 Chave/Verificador:**")
-                        st.code(ipm_r.protocolo or ipm_r.numero_nfse or 'N/A', language=None)
-
-                        if ipm_r.link_nfse:
-                            st.markdown("**📄 PDF da NFS-e (Prefeitura):**")
-                            st.link_button("Baixar PDF da NFS-e", ipm_r.link_nfse)
-
+                        
+                        st.markdown(f"**🔑 Chave de Acesso:**")
+                        st.code(resultado['chave_acesso'], language=None)
+                        
+                        # Botões de download (AGORA FORA DO FORM)
+                        st.markdown("### 📥 Downloads")
+                        
+                        col_xml, col_pdf, col_space = st.columns([1, 1, 2])
+                        
+                        with col_xml:
+                            if resultado.get('xml_path'):
+                                download_file_button(resultado['xml_path'], "📄 Baixar XML", key="single_xml")
+                        
+                        with col_pdf:
+                            if resultado.get('pdf_path'):
+                                download_file_button(resultado['pdf_path'], "📑 Baixar PDF", key="single_pdf")
+                        
                     else:
-                        st.error(f"❌ Erro ao emitir NFS-e: {ipm_r.mensagem or 'Erro desconhecido'}")
-
+                        st.error(f"❌ Erro na emissão: {resultado.get('mensagem', 'Erro desconhecido')}")
+                        if resultado.get('resultado'):
+                            with st.expander("🔍 Detalhes do Erro"):
+                                st.json(resultado['resultado'])
+                
                 except Exception as e:
                     st.error(f"❌ Erro ao emitir NFS-e: {str(e)}")
-                    app_logger.error(f"Erro na emissão individual IPM: {e}", exc_info=True)
+                    app_logger.error(f"Erro na emissão individual: {e}", exc_info=True)
 
 
 # ============================================================================
@@ -583,7 +578,7 @@ def render_batch_emission():
                             )
                         else:
                             st.info(
-                                "ℹ️ Valores encontrados no PDF serão ignorados: "
+                                "ℹ️ Valores do PDF serão ignorados: "
                                 "todas as notas do lote usarão o valor fixo configurado abaixo."
                             )
                     
@@ -764,21 +759,38 @@ def render_batch_emission():
                                                     return True
                                     return False
 
-                                def _emitir_ipm_registro(registro_dict, config_dict):
-                                    """Emite uma NFS-e via IPM/Atende.Net e retorna dict compatível com o loop."""
-                                    ipm_results = asyncio.run(
-                                        get_nfse_service().emitir_nfse_lote_ipm([registro_dict], config_dict)
-                                    )
-                                    r = ipm_results[0]
-                                    return {
-                                        "sucesso": r.status == "sucesso",
-                                        "chave_acesso": r.protocolo or r.numero_nfse or "N/A",
-                                        "numero": r.numero_nfse or "N/A",
-                                        "xml_path": None,
-                                        "pdf_path": None,
-                                        "link_nfse": r.link_nfse,
-                                        "mensagem": r.mensagem or "",
-                                    }
+                                def emitir_com_retry(prestador_obj, tomador_obj, servico_obj, max_tentativas=MAX_TENTATIVAS):
+                                    """Emite NFS-e com retry e tratamento E0014: consulta idDPS; se existir considera sucesso, senão aguarda 5s e reenvia (até 3x)."""
+                                    ultimo_resultado = None
+                                    for tentativa in range(max_tentativas):
+                                        resultado = asyncio.run(emitir_nfse_com_pdf(prestador_obj, tomador_obj, servico_obj))
+                                        ultimo_resultado = resultado
+                                        if resultado.get("sucesso"):
+                                            return resultado
+                                        body = resultado.get("response_body")
+                                        if body and _eh_erro_e0014(body):
+                                            id_dps = _extrair_id_dps(body)
+                                            app_logger.warning(f"E0014 recebido (tentativa {tentativa+1}). idDPS={id_dps}. Consultando se NFS-e já existe...")
+                                            if id_dps:
+                                                try:
+                                                    consulta = asyncio.run(get_nfse_service().client.consultar_nfse_por_id_dps(id_dps))
+                                                    if consulta:
+                                                        chave = consulta.get("chaveAcesso") or consulta.get("chave_acesso")
+                                                        app_logger.info(f"NFS-e já existia (idDPS={id_dps}). Considerado sucesso. Chave: {chave}")
+                                                        return {"sucesso": True, "chave_acesso": chave, "xml_path": None, "pdf_path": None, "resultado": consulta, "numero": None}
+                                                except Exception as ex:
+                                                    app_logger.warning(f"Consulta idDPS falhou: {ex}")
+                                            if tentativa < max_tentativas - 1:
+                                                app_logger.info(f"NFS-e não encontrada. Aguardando {DELAY_RETRY_E0014}s para reenviar (tentativa {tentativa+1}/{max_tentativas})...")
+                                                time.sleep(DELAY_RETRY_E0014)
+                                                continue
+                                            ultimo_resultado = {**resultado, "mensagem": resultado.get("erro") or resultado.get("mensagem") or "E0014 - NFS-e não encontrada após consulta. Requer atenção manual."}
+                                            return ultimo_resultado
+                                        if tentativa < max_tentativas - 1:
+                                            time.sleep(1)
+                                            continue
+                                        return {**resultado, "mensagem": resultado.get("mensagem") or resultado.get("erro", "Erro desconhecido")}
+                                    return ultimo_resultado or {"sucesso": False, "erro": "Erro após todas as tentativas", "mensagem": "Erro após todas as tentativas"}
                                 
                                 for idx, record in enumerate(records_to_process):
                                     status_text.text(f"⏳ Processando {idx+1}/{len(records_to_process)}: {record.get('nome', 'N/A')}...")
@@ -836,7 +848,7 @@ def render_batch_emission():
                                             else:
                                                 discriminacao_com_hash = f"Hash do Paciente: {hash_paciente}"
                                         
-                                        # Serviço — valor fixo do lote (configurável no formulário)
+                                        # Serviço — valor fixo do lote (certificado digital / Sefin Nacional)
                                         valor_nota = float(valor_servico)
                                         app_logger.info(f"[{idx+1}] Criando objeto Servico (valor={valor_nota}, fonte=valor fixo do lote)...")
                                         servico_obj = Servico(
@@ -848,23 +860,9 @@ def render_batch_emission():
                                         )
                                         app_logger.info(f"[{idx+1}] Servico criado com sucesso")
                                         
-                                        # Emitir NFS-e via IPM/Atende.Net
-                                        app_logger.info(f"[{idx+1}] Chamando IPM Atende.Net...")
-                                        _reg_ipm = {
-                                            "cpf": cpf_cnpj,
-                                            "nome": record.get("nome", ""),
-                                            "hash": hash_paciente or "",
-                                            "bairro": record.get("bairro", "NAO INFORMADO"),
-                                            "cep": (record.get("cep") or "").replace("-", "") or "00000000",
-                                            "logradouro": record.get("logradouro", "NAO INFORMADO"),
-                                        }
-                                        _cfg_ipm = {
-                                            "valor": float(valor_nota),
-                                            "aliquota_iss": aliquota_iss,
-                                            "item_lista": item_lista.replace(".", ""),
-                                            "descricao": descricao_com_hash,
-                                        }
-                                        resultado = _emitir_ipm_registro(_reg_ipm, _cfg_ipm)
+                                        # Emitir NFS-e com retry automático
+                                        app_logger.info(f"[{idx+1}] Chamando emitir_com_retry...")
+                                        resultado = emitir_com_retry(prestador_obj, tomador_obj, servico_obj)
                                         app_logger.info(f"[{idx+1}] Emissão concluída: {resultado.get('sucesso', False)}")
                                         
                                         # Throttling: 2 segundos entre cada emissão (reduz E0014 intermitente)
@@ -885,9 +883,9 @@ def render_batch_emission():
                                                 'tomador_cpf': record.get('cpf', 'N/A'),
                                                 'valor': float(valor_nota),
                                                 'iss': float(valor_nota) * (aliquota_iss / 100),
-                                                'xml_path': None,
-                                                'pdf_path': None,
-                                                'link_nfse': resultado.get('link_nfse'),
+                                                'xml_path': resultado.get('xml_path'),
+                                                'pdf_path': resultado.get('pdf_path'),
+                                                'resultado_completo': resultado
                                             }
                                             
                                             st.session_state.emitted_nfse.append(nfse_data)
@@ -972,49 +970,56 @@ def render_batch_emission():
                                 df_result = pd.DataFrame(resultados)
                                 st.dataframe(df_result, use_container_width=True)
                                 
-                                # Gerar ZIP com PDFs baixados dos links IPM
+                                # Gerar ZIP com os PDFs automaticamente
                                 if sucessos > 0:
                                     st.success(f"🎉 {sucessos} NFS-e emitidas com sucesso!")
-
+                                    
+                                    # Preparar ZIP com todos os PDFs do lote
                                     try:
-                                        with st.spinner("📦 Baixando PDFs da Prefeitura e gerando ZIP..."):
-                                            # Coleta links das notas recém-emitidas
-                                            notas_recentes = st.session_state.emitted_nfse[-sucessos:]
-                                            links = [
-                                                (
-                                                    n.get('tomador_nome', 'paciente'),
-                                                    n.get('numero', str(i+1)),
-                                                    n.get('link_nfse'),
+                                        with st.spinner("📦 Preparando download automático dos PDFs..."):
+                                            # Coletar PDFs das notas emitidas no lote
+                                            pdf_files = []
+                                            for nfse in st.session_state.emitted_nfse[-sucessos:]:  # Pegar apenas as últimas emitidas
+                                                pdf_path = nfse.get('pdf_path')
+                                                if pdf_path and Path(pdf_path).exists():
+                                                    pdf_files.append(Path(pdf_path))
+                                            
+                                            if pdf_files:
+                                                # Criar ZIP em memória
+                                                import io
+                                                zip_buffer = io.BytesIO()
+                                                
+                                                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                                                    for pdf_path in pdf_files:
+                                                        zip_file.write(pdf_path, pdf_path.name)
+                                                
+                                                zip_buffer.seek(0)
+                                                
+                                                # Criar nome do arquivo com timestamp
+                                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                                zip_filename = f"nfse_lote_pdfs_{timestamp}.zip"
+                                                
+                                                st.success(f"✅ {len(pdf_files)} PDFs prontos para download!")
+                                                
+                                                # Botão de download automático
+                                                st.download_button(
+                                                    label=f"📥 Baixar {len(pdf_files)} PDFs (ZIP)",
+                                                    data=zip_buffer,
+                                                    file_name=zip_filename,
+                                                    mime="application/zip",
+                                                    use_container_width=True,
+                                                    type="primary"
                                                 )
-                                                for i, n in enumerate(notas_recentes)
-                                            ]
-
-                                            zip_buffer, baixados, erros_dl = _gerar_zip_pdfs_ipm(links)
-                                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                                            zip_filename = f"nfse_lote_{timestamp}.zip"
-
-                                        if baixados > 0:
-                                            st.success(f"✅ {baixados}/{sucessos} PDFs prontos para download!")
-                                            st.download_button(
-                                                label=f"📥 Baixar {baixados} PDFs (ZIP)",
-                                                data=zip_buffer,
-                                                file_name=zip_filename,
-                                                mime="application/zip",
-                                                use_container_width=True,
-                                                type="primary",
-                                            )
-                                        else:
-                                            st.warning("⚠️ PDFs ainda não disponíveis nos links da Prefeitura.")
-                                            st.info("💡 Use os links individuais em 'NFS-e Emitidas' para baixar depois.")
-
-                                        if erros_dl:
-                                            with st.expander(f"⚠️ {len(erros_dl)} PDFs não baixados"):
-                                                for err in erros_dl:
-                                                    st.text(err)
-
+                                                
+                                                st.info("💡 **Dica:** O download foi preparado automaticamente. Clique no botão acima para salvar!")
+                                            else:
+                                                st.warning("⚠️ Nenhum arquivo PDF disponível para download")
+                                                st.info("💡 Acesse o menu 'NFS-e Emitidas' para visualizar todas as notas")
+                                    
                                     except Exception as e:
-                                        st.error(f"❌ Erro ao preparar ZIP: {e}")
-                                        app_logger.error(f"Erro ao gerar ZIP de PDFs IPM: {e}", exc_info=True)
+                                        st.error(f"❌ Erro ao preparar download: {e}")
+                                        app_logger.error(f"Erro ao preparar ZIP de PDFs: {e}", exc_info=True)
+                                        st.info("💡 Acesse o menu 'NFS-e Emitidas' para baixar os arquivos individualmente")
                 
                 else:
                     st.error("❌ Não foi possível extrair dados do PDF!")
@@ -1181,37 +1186,43 @@ def render_emitted_nfse_list():
             if not nfse_list:
                 st.warning("⚠️ Nenhuma nota no filtro atual")
             else:
-                with st.spinner("📦 Baixando PDFs da Prefeitura e gerando ZIP..."):
+                with st.spinner("📦 Gerando arquivo ZIP com os PDFs..."):
                     try:
-                        links = [
-                            (
-                                n.get('tomador_nome', 'paciente'),
-                                n.get('numero', str(i+1)),
-                                n.get('link_nfse'),
-                            )
-                            for i, n in enumerate(nfse_list)
-                        ]
-                        zip_buffer, baixados, erros_dl = _gerar_zip_pdfs_ipm(links)
-                        data_hora = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-                        if baixados > 0:
+                        import zipfile
+                        from io import BytesIO
+                        from datetime import datetime
+                        
+                        # Criar arquivo ZIP em memória
+                        zip_buffer = BytesIO()
+                        
+                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                            pdfs_encontrados = 0
+                            
+                            for nota in nfse_list:
+                                pdf_path = nota.get('pdf_path')
+                                if pdf_path and Path(pdf_path).exists():
+                                    # Adicionar PDF ao ZIP
+                                    zip_file.write(pdf_path, Path(pdf_path).name)
+                                    pdfs_encontrados += 1
+                        
+                        if pdfs_encontrados > 0:
+                            # Preparar download
+                            zip_buffer.seek(0)
+                            data_hora = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            
                             st.download_button(
-                                label=f"⬇️ Download ZIP ({baixados} PDFs)",
+                                label=f"⬇️ Download ZIP ({pdfs_encontrados} PDFs)",
                                 data=zip_buffer.getvalue(),
                                 file_name=f"nfse_pdfs_{data_hora}.zip",
                                 mime="application/zip",
                                 use_container_width=True,
                                 key="download_bulk_pdf"
                             )
-                            st.success(f"✅ {baixados} PDF(s) prontos para download!")
+                            
+                            st.success(f"✅ {pdfs_encontrados} PDF(s) prontos para download!")
                         else:
-                            st.warning("⚠️ Nenhum PDF disponível nos links da Prefeitura.")
-
-                        if erros_dl:
-                            with st.expander(f"⚠️ {len(erros_dl)} PDFs não baixados"):
-                                for err in erros_dl:
-                                    st.text(err)
-
+                            st.warning("⚠️ Nenhum arquivo PDF encontrado no sistema")
+                    
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar ZIP: {e}")
     
@@ -1223,6 +1234,9 @@ def render_emitted_nfse_list():
             else:
                 with st.spinner("📦 Gerando arquivo ZIP com os XMLs..."):
                     try:
+                        import zipfile
+                        from io import BytesIO
+                        from datetime import datetime
                         
                         # Criar arquivo ZIP em memória
                         zip_buffer = BytesIO()
@@ -1457,6 +1471,9 @@ def render_settings():
             else:
                 with st.spinner("📦 Gerando arquivo ZIP com todos os PDFs..."):
                     try:
+                        import zipfile
+                        from io import BytesIO
+                        from datetime import datetime
                         
                         # Criar arquivo ZIP em memória
                         zip_buffer = BytesIO()
@@ -1498,6 +1515,9 @@ def render_settings():
             else:
                 with st.spinner("📦 Gerando arquivo ZIP com todos os XMLs..."):
                     try:
+                        import zipfile
+                        from io import BytesIO
+                        from datetime import datetime
                         
                         # Criar arquivo ZIP em memória
                         zip_buffer = BytesIO()
