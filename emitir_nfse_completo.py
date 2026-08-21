@@ -231,12 +231,31 @@ async def emitir_nfse_com_pdf(
         # Incluir body da resposta em erros HTTP para tratamento E0014 no lote
         try:
             import httpx
+            import json as _json
             if isinstance(e, httpx.HTTPStatusError) and e.response is not None:
                 out['response_status'] = e.response.status_code
                 try:
-                    out['response_body'] = e.response.json()
+                    body = e.response.json()
+                    out['response_body'] = body
+                    # Mensagem legível com códigos Sefin (ex.: E0xxx)
+                    detalhes = []
+                    for lst in ("erros", "Erros", "errors", "alertas", "Alertas"):
+                        items = body.get(lst) if isinstance(body, dict) else None
+                        if isinstance(items, list):
+                            for item in items:
+                                if not isinstance(item, dict):
+                                    continue
+                                cod = item.get("Codigo") or item.get("codigo") or ""
+                                desc = item.get("Descricao") or item.get("descricao") or item.get("mensagem") or ""
+                                detalhes.append(f"{cod}: {desc}".strip(": "))
+                    if detalhes:
+                        out['mensagem'] = f"HTTP {e.response.status_code} — " + " | ".join(detalhes)
+                    else:
+                        out['mensagem'] = f"HTTP {e.response.status_code} — {_json.dumps(body, ensure_ascii=False)[:400]}"
                 except Exception:
-                    out['response_body'] = e.response.text
+                    text = e.response.text
+                    out['response_body'] = text
+                    out['mensagem'] = f"HTTP {e.response.status_code} — {text[:400]}"
         except Exception:
             pass
         return out
@@ -248,6 +267,7 @@ async def exemplo_emissao():
     # Dados do prestador
     prestador = PrestadorServico(
         cnpj="59418245000186",
+        inscricao_municipal="8259069",
         razao_social="GABRIEL SALEH SERVICOS MEDICOS LTDA",
         nome_fantasia="Dr. Gabriel Saleh",
         logradouro="Rua Felipe Schmidt",
@@ -268,9 +288,9 @@ async def exemplo_emissao():
     servico = Servico(
         descricao="Consulta medica especializada",
         item_lista_servico="04.01.01",
-        valor_servico=89.00,
+        valor_servico=50.00,
         aliquota_iss=2.00,
-        valor_iss=1.78,
+        valor_iss=1.00,
         valor_deducoes=0.00
     )
     
