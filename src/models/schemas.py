@@ -127,6 +127,7 @@ class Servico(BaseModel):
     item_lista_servico: str = Field(..., description="Item da lista de serviços (LC 116/2003)")
     codigo_cnae: Optional[str] = Field(None, description="Código CNAE")
     codigo_tributacao_municipio: Optional[str] = Field(None, description="Código tributação municipal")
+    codigo_nbs: Optional[str] = Field(None, description="Código NBS (ex.: 1.2301.21.00)")
     
     # Outras informações
     discriminacao: Optional[str] = Field(None, max_length=2000, description="Discriminação adicional")

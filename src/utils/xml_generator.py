@@ -12,6 +12,8 @@ from src.models.schemas import (
     TomadorServico, Servico, PrestadorServico,
     NFSeRequest, TipoAmbiente
 )
+from config.settings import settings
+from config.client import nbs_para_xml
 
 try:
     from lxml import etree
@@ -82,14 +84,15 @@ class NFSeXMLGenerator:
         
         # Gerar ID do DPS (formato: DPS + cMunEmissor(7) + tpInscr(1) + nrInscr(14) + serie(5) + nrDPS(15) = 45 chars)
         cnpj_prestador = nfse_request.prestador.cnpj.zfill(14)
-        serie_dps = "00001"  # 5 dígitos
+        codigo_ibge = str(settings.PRESTADOR_CODIGO_IBGE).zfill(7)
+        serie_dps = str(settings.DPS_SERIE).zfill(5)[:5]
         
         # Incrementar contador a cada emissão
         self._dps_counter += 1
         numero_dps = str(self._dps_counter).zfill(15)  # 15 dígitos para o ID
         numero_dps_element = str(self._dps_counter)  # Número SEM zeros à esquerda para o elemento nDPS
         
-        id_dps = f"DPS4205407{1 if len(cnpj_prestador) == 11 else 2}{cnpj_prestador}{serie_dps}{numero_dps}"
+        id_dps = f"DPS{codigo_ibge}{1 if len(cnpj_prestador) == 11 else 2}{cnpj_prestador}{serie_dps}{numero_dps}"
         inf_dps.set("Id", id_dps)
         
         # ORDEM CORRETA CONFORME XSD v1.01:
@@ -124,7 +127,7 @@ class NFSeXMLGenerator:
         SubElement(inf_dps, "tpEmit").text = "1"
         
         # 8. cLocEmi - Código IBGE do município emissor
-        SubElement(inf_dps, "cLocEmi").text = "4205407"  # Florianópolis-SC
+        SubElement(inf_dps, "cLocEmi").text = str(settings.PRESTADOR_CODIGO_IBGE).zfill(7)
         
         # 9. prest - Dados do Prestador
         prest_elem = SubElement(inf_dps, "prest")
@@ -174,12 +177,10 @@ class NFSeXMLGenerator:
         
         # 5. regTrib - Regimes Tributários (obrigatório)
         reg_trib = SubElement(parent, "regTrib")
-        # opSimpNac: 1=Não optante, 2=Optante SN, 3=MEI
-        # Prestador Gabriel Saleh (CNPJ 59.418.245/0001-86) — regime validado em produção
-        SubElement(reg_trib, "opSimpNac").text = "3"  # 3=MEI
-        # regApTribSN - Regime de Apuração dos Tributos do SN (obrigatório para optante SN/MEI)
-        # 1=Caixa, 2=Competência
-        SubElement(reg_trib, "regApTribSN").text = "2"  # 2=Competência
+        # opSimpNac: 1=Não optante, 2=Optante SN (ME/EPP), 3=MEI
+        SubElement(reg_trib, "opSimpNac").text = str(settings.OP_SIMP_NAC)
+        # regApTribSN: 1=Caixa, 2=Competência (obrigatório para optante SN)
+        SubElement(reg_trib, "regApTribSN").text = str(settings.REG_AP_TRIB_SN)
         SubElement(reg_trib, "regEspTrib").text = "0"  # 0=Nenhum
     
     def _add_tomador_v101(self, parent: Element, tomador: TomadorServico):
@@ -199,7 +200,7 @@ class NFSeXMLGenerator:
         
         # 1. locPrest - Local da Prestação
         loc_prest = SubElement(parent, "locPrest")
-        SubElement(loc_prest, "cLocPrestacao").text = "4205407"  # Florianópolis-SC
+        SubElement(loc_prest, "cLocPrestacao").text = str(settings.PRESTADOR_CODIGO_IBGE).zfill(7)
         
         # 2. cServ - Elemento container para códigos e descrição do serviço
         c_serv_elem = SubElement(parent, "cServ")
@@ -229,8 +230,16 @@ class NFSeXMLGenerator:
         
         SubElement(c_serv_elem, "cTribNac").text = c_trib_nac
         
-        # 4. xDescServ - Descrição do Serviço (dentro de cServ)
-        SubElement(c_serv_elem, "xDescServ").text = servico.descricao
+        # 4. cNBS - Código NBS (9 dígitos), ex.: 1.2301.21.00 → 123012100
+        codigo_nbs = getattr(servico, "codigo_nbs", None) or settings.CODIGO_NBS
+        if codigo_nbs:
+            SubElement(c_serv_elem, "cNBS").text = nbs_para_xml(str(codigo_nbs))
+        
+        # 5. xDescServ - Descrição do Serviço (+ observações/hash quando houver)
+        desc_final = servico.descricao or ""
+        if servico.discriminacao:
+            desc_final = f"{desc_final}\n{servico.discriminacao}".strip()
+        SubElement(c_serv_elem, "xDescServ").text = desc_final
     
     def _add_valores_v101(self, parent: Element, servico: Servico):
         """Adiciona valores conforme XSD v1.01."""

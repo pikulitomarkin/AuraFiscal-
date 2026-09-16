@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     """Configurações da aplicação com validação automática."""
     
     # Aplicação
-    APP_NAME: str = "NFS-e Automation System"
+    APP_NAME: str = "RoboFiscal — Matheus Costa NFS-e"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     SECRET_KEY: str = "default-secret-key-change-in-production"
@@ -51,8 +51,20 @@ class Settings(BaseSettings):
     MAX_BATCH_SIZE: int = 600
     MIN_BATCH_SIZE: int = 1
     CONCURRENT_REQUESTS: int = 10
-    # Valor fixo aplicado a todas as NFS-e emitidas em lote (alterável na UI)
-    VALOR_EMISSAO_LOTE: float = 50.00
+    # Fallback quando o PDF/relatório não trouxer valor (prioridade: valor do PDF)
+    VALOR_EMISSAO_LOTE: float = 45.00
+    
+    # Prestador Matheus Costa — Tubarão-SC (pode sobrescrever via .env)
+    PRESTADOR_CNPJ: str = "53380857000140"
+    PRESTADOR_IM: str = "89944"
+    PRESTADOR_RAZAO_SOCIAL: str = "MATHEUS COSTA SERVICOS MEDICOS LTDA"
+    PRESTADOR_CODIGO_IBGE: str = "4218707"
+    DPS_SERIE: str = "70000"
+    ITEM_LISTA_SERVICO: str = "04.01.01"
+    CODIGO_NBS: str = "1.2301.21.00"
+    OP_SIMP_NAC: str = "2"  # Optante SN ME/EPP
+    REG_AP_TRIB_SN: str = "2"  # Competência
+    ALIQUOTA_ISS_PADRAO: float = 2.0
     
     # Logs
     LOG_LEVEL: str = "INFO"

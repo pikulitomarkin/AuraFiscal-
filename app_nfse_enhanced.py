@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Imports do projeto
 from config.settings import settings
 from config.database import init_database
+from config.client import CANAIS, PRESTADOR_CNPJ, PRESTADOR_IM, PRESTADOR_RAZAO_SOCIAL, PRESTADOR_LOGRADOURO, PRESTADOR_NUMERO, PRESTADOR_BAIRRO, PRESTADOR_MUNICIPIO, PRESTADOR_UF, PRESTADOR_CEP
 from src.auth.authentication import auth_manager
 from src.pdf.extractor import pdf_extractor
 from src.api.nfse_service import get_nfse_service
@@ -35,7 +36,7 @@ from emitir_nfse_completo import emitir_nfse_com_pdf
 
 # Configuração da página
 st.set_page_config(
-    page_title="NFS-e Automation Pro",
+    page_title="RoboFiscal — Matheus Costa",
     page_icon="📄",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -140,12 +141,29 @@ def init_session_state():
         st.session_state.last_emission = None
     if 'valor_emissao_lote' not in st.session_state:
         st.session_state.valor_emissao_lote = load_app_config()["valor_emissao_lote"]
+    if 'canal_emissao' not in st.session_state:
+        st.session_state.canal_emissao = "bliss"
+
+
+def get_prestador_obj() -> PrestadorServico:
+    """Monta o prestador Matheus Costa a partir das configs do cliente."""
+    return PrestadorServico(
+        cnpj=settings.PRESTADOR_CNPJ or PRESTADOR_CNPJ,
+        inscricao_municipal=settings.PRESTADOR_IM or PRESTADOR_IM,
+        razao_social=settings.PRESTADOR_RAZAO_SOCIAL or PRESTADOR_RAZAO_SOCIAL,
+        logradouro=PRESTADOR_LOGRADOURO,
+        numero=PRESTADOR_NUMERO,
+        bairro=PRESTADOR_BAIRRO,
+        municipio=PRESTADOR_MUNICIPIO,
+        uf=PRESTADOR_UF,
+        cep=PRESTADOR_CEP,
+    )
 
 
 def login_page():
     """Renderiza página de login."""
-    st.title("🔐 Sistema de Emissão NFS-e")
-    st.markdown("### Portal de Automação de Notas Fiscais")
+    st.title("🔐 RoboFiscal")
+    st.markdown("### Emissão NFS-e — Matheus Costa (ClickCannabis / Bliss)")
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
@@ -344,7 +362,7 @@ def render_single_emission():
                 "Alíquota ISS (%) *",
                 min_value=0.0,
                 max_value=5.0,
-                value=2.0,
+                value=float(settings.ALIQUOTA_ISS_PADRAO),
                 step=0.1,
                 format="%.2f"
             )
@@ -352,26 +370,36 @@ def render_single_emission():
         with col3:
             item_lista = st.text_input(
                 "Item Lista LC 116/2003 *",
-                value="04.01.01",
+                value=settings.ITEM_LISTA_SERVICO,
                 help="Código do serviço conforme Lista LC 116/2003"
             )
         
+        canal_id = st.selectbox(
+            "Canal *",
+            options=list(CANAIS.keys()),
+            format_func=lambda k: CANAIS[k].label,
+            index=list(CANAIS.keys()).index(st.session_state.canal_emissao)
+            if st.session_state.canal_emissao in CANAIS else 0,
+            help="Define a descrição da nota (ClickCannabis ou Bliss)"
+        )
+        canal = CANAIS[canal_id]
+        
         descricao_servico = st.text_area(
             "Descrição do Serviço *",
-            value="Prestação de serviços conforme contrato",
+            value=canal.descricao_servico,
             height=100,
             help="Descrição detalhada do serviço prestado"
         )
         
         hash_paciente = st.text_input(
             "Hash do Paciente",
-            help="Hash do paciente (opcional - aparecerá na DANFSE)"
+            help="Hash do paciente (vai para observações / discriminação da NFS-e)"
         )
         
         discriminacao = st.text_area(
-            "Discriminação Adicional",
+            "Discriminação Adicional / Observações",
             height=80,
-            help="Informações adicionais sobre o serviço (opcional)"
+            help="Informações adicionais (a hash do paciente é incluída automaticamente)"
         )
         
         col1, col2 = st.columns(2)
@@ -398,17 +426,8 @@ def render_single_emission():
             st.error("❌ Preencha todos os campos obrigatórios (*)")
         else:
             # Preparar dados
-            prestador = PrestadorServico(
-                cnpj='59418245000186',
-                inscricao_municipal='8259069',
-                razao_social='GABRIEL SALEH SERVICOS MEDICOS LTDA',
-                logradouro='Rua Exemplo',
-                numero='123',
-                bairro='Centro',
-                municipio='Florianopolis',
-                uf='SC',
-                cep='88010000'
-            )
+            st.session_state.canal_emissao = canal_id
+            prestador = get_prestador_obj()
             
             cpf_limpo = tomador_cpf.replace('.', '').replace('-', '').replace('/', '')
             tomador = TomadorServico(
@@ -419,15 +438,22 @@ def render_single_emission():
                 telefone=tomador_telefone if tomador_telefone else None
             )
             
-            # Adicionar hash do paciente na descrição (aparece na DANFSE)
-            descricao_final = hash_paciente if hash_paciente and hash_paciente.strip() else descricao_servico
+            # Descrição do canal; hash nas observações
+            descricao_final = descricao_servico or canal.descricao_servico
+            observacoes = discriminacao.strip() if discriminacao else ""
+            if hash_paciente and hash_paciente.strip():
+                observacoes = (
+                    f"{observacoes}\nHash do Paciente: {hash_paciente.strip()}".strip()
+                    if observacoes else f"Hash do Paciente: {hash_paciente.strip()}"
+                )
             
             servico = Servico(
                 valor_servico=valor_servico,
                 aliquota_iss=aliquota_iss,
                 item_lista_servico=item_lista,
+                codigo_nbs=settings.CODIGO_NBS,
                 descricao=descricao_final,
-                discriminacao=discriminacao if discriminacao else None
+                discriminacao=observacoes or None
             )
             
             # Emitir NFS-e
@@ -572,22 +598,32 @@ def render_batch_emission():
                         
                         registros_sem_valor = sum(1 for r in valid_records if not r.get('valor'))
                         if registros_sem_valor > 0:
-                            st.info(
-                                f"ℹ️ **{registros_sem_valor} registro(s)** sem valor no PDF. "
-                                "Todas as notas do lote usarão o valor fixo configurado abaixo."
+                            st.warning(
+                                f"⚠️ **{registros_sem_valor} registro(s)** sem valor no PDF. "
+                                "Para esses, será usado o valor de fallback configurado abaixo."
                             )
                         else:
-                            st.info(
-                                "ℹ️ Valores do PDF serão ignorados: "
-                                "todas as notas do lote usarão o valor fixo configurado abaixo."
+                            st.success(
+                                "✅ Valor extraído do PDF para todos os registros. "
+                                "O valor do formulário abaixo é apenas fallback."
                             )
                     
                     # Configuração do serviço
                     st.markdown("### 3️⃣ Configuração do Serviço")
+                    
+                    canal_options = list(CANAIS.keys())
+                    canal_id = st.selectbox(
+                        "Canal de emissão *",
+                        options=canal_options,
+                        format_func=lambda k: CANAIS[k].label,
+                        index=canal_options.index(st.session_state.canal_emissao)
+                        if st.session_state.canal_emissao in CANAIS else 0,
+                        help="ClickCannabis ou Bliss — altera a descrição da NFS-e"
+                    )
+                    canal = CANAIS[canal_id]
                     st.caption(
-                        "O valor de emissão é **fixo para todo o lote**. "
-                        "Altere abaixo quando precisar; o padrão configurado é "
-                        f"R$ {st.session_state.valor_emissao_lote:,.2f}."
+                        f"Descrição padrão do canal **{canal.label}**: `{canal.descricao_servico}`. "
+                        "O **valor de cada nota** vem do PDF/relatório; hash vai nas observações."
                     )
                     
                     with st.form("batch_config_form"):
@@ -595,15 +631,14 @@ def render_batch_emission():
                         
                         with col1:
                             valor_servico = st.number_input(
-                                "💰 Valor de emissão do lote (R$) *",
+                                "💰 Valor fallback (R$) *",
                                 min_value=0.01,
                                 value=float(st.session_state.valor_emissao_lote),
                                 step=1.00,
                                 format="%.2f",
                                 help=(
-                                    "Valor fixo aplicado a todas as NFS-e deste lote. "
-                                    "Altere aqui sempre que precisar. O padrão também pode "
-                                    "ser ajustado em Configurações."
+                                    "Usado somente quando o PDF não tiver valor. "
+                                    "Se o PDF tiver valor, ele tem prioridade."
                                 )
                             )
                             
@@ -611,7 +646,7 @@ def render_batch_emission():
                                 "Alíquota ISS (%) *",
                                 min_value=0.0,
                                 max_value=5.0,
-                                value=2.0,
+                                value=float(settings.ALIQUOTA_ISS_PADRAO),
                                 step=0.1,
                                 format="%.2f"
                             )
@@ -619,7 +654,7 @@ def render_batch_emission():
                         with col2:
                             item_lista = st.text_input(
                                 "Item Lista LC 116/2003 *",
-                                value="04.01.01",
+                                value=settings.ITEM_LISTA_SERVICO,
                                 help="Código do serviço conforme Lista LC 116/2003"
                             )
                             
@@ -627,13 +662,14 @@ def render_batch_emission():
                         
                         descricao_servico = st.text_area(
                             "Descrição do Serviço *",
-                            value="Prestação de serviços conforme contrato",
+                            value=canal.descricao_servico,
                             height=100
                         )
                         
                         discriminacao = st.text_area(
                             "Discriminação Adicional (Opcional)",
-                            height=80
+                            height=80,
+                            help="A hash de cada paciente do PDF é acrescentada automaticamente nas observações"
                         )
                         
                         col1, col2 = st.columns(2)
@@ -661,9 +697,9 @@ def render_batch_emission():
                             st.metric("Registros", min(limite_lote, len(valid_records)))
                         
                         with col2:
-                            # Todas as notas usam o valor fixo do formulário
+                            # Prioridade: valor do PDF; fallback do formulário
                             registros_resumo = valid_records[:min(limite_lote, len(valid_records))]
-                            valor_total = valor_servico * len(registros_resumo)
+                            valor_total = sum(r.get('valor') or valor_servico for r in registros_resumo)
                             st.metric("Valor Total", f"R$ {valor_total:,.2f}")
                         
                         with col3:
@@ -671,7 +707,8 @@ def render_batch_emission():
                             st.metric("ISS Total", f"R$ {iss_total:,.2f}")
                         
                         with col4:
-                            st.metric("Valor por nota", f"R$ {valor_servico:,.2f}")
+                            com_valor_pdf = sum(1 for r in registros_resumo if r.get('valor'))
+                            st.metric("Com valor do PDF", f"{com_valor_pdf}/{len(registros_resumo)}")
                         
                         st.markdown("---")
                         
@@ -685,8 +722,9 @@ def render_batch_emission():
                             if not valid_records:
                                 st.error("❌ Nenhum registro válido encontrado!")
                             else:
-                                # Persistir o valor usado neste lote como novo padrão
+                                # Persistir fallback e canal
                                 st.session_state.valor_emissao_lote = float(valor_servico)
+                                st.session_state.canal_emissao = canal_id
                                 save_app_config()
 
                                 # Limitar registros ao limite do lote
@@ -702,11 +740,12 @@ def render_batch_emission():
                                     'descricao': descricao_servico,
                                     'discriminacao': discriminacao if discriminacao else None,
                                     'simples_nacional': simples_nacional,
-                                    'incentivador_cultural': False
+                                    'incentivador_cultural': False,
+                                    'canal': canal_id,
                                 }
                                 
                                 prestador = {
-                                    'cnpj': '59418245000186',
+                                    'cnpj': settings.PRESTADOR_CNPJ,
                                 }
                                 
                                 # Barra de progresso
@@ -810,17 +849,7 @@ def render_batch_emission():
                                         
                                         # Prestador
                                         app_logger.info(f"[{idx+1}] Criando objeto Prestador...")
-                                        prestador_obj = PrestadorServico(
-                                            cnpj='59418245000186',
-                                            inscricao_municipal='8259069',
-                                            razao_social='GABRIEL SALEH SERVICOS MEDICOS LTDA',
-                                            logradouro='Rua Exemplo',
-                                            numero='123',
-                                            bairro='Centro',
-                                            municipio='Florianopolis',
-                                            uf='SC',
-                                            cep='88010000'
-                                        )
+                                        prestador_obj = get_prestador_obj()
                                         app_logger.info(f"[{idx+1}] Prestador criado com sucesso")
                                         
                                         # Tomador
@@ -834,13 +863,9 @@ def render_batch_emission():
                                         )
                                         app_logger.info(f"[{idx+1}] Tomador criado com sucesso")
                                         
-                                        # Criar descrição personalizada com o hash do paciente
-                                        app_logger.info(f"[{idx+1}] Preparando descrição com hash...")
-                                        
-                                        # Adicionar hash na DESCRIÇÃO (aparece na DANFSE)
-                                        descricao_com_hash = hash_paciente if hash_paciente else descricao_servico
-                                        
-                                        # Adicionar hash também na discriminação
+                                        # Descrição do canal; hash nas observações
+                                        app_logger.info(f"[{idx+1}] Preparando descrição/observações (canal={canal_id}, hash={hash_paciente})...")
+                                        descricao_final = descricao_servico or canal.descricao_servico
                                         discriminacao_com_hash = discriminacao if discriminacao else ""
                                         if hash_paciente:
                                             if discriminacao_com_hash:
@@ -848,15 +873,17 @@ def render_batch_emission():
                                             else:
                                                 discriminacao_com_hash = f"Hash do Paciente: {hash_paciente}"
                                         
-                                        # Serviço — valor fixo do lote (certificado digital / Sefin Nacional)
-                                        valor_nota = float(valor_servico)
-                                        app_logger.info(f"[{idx+1}] Criando objeto Servico (valor={valor_nota}, fonte=valor fixo do lote)...")
+                                        # Serviço — prioridade: valor do PDF; fallback do formulário
+                                        valor_nota = float(record.get('valor') or valor_servico)
+                                        fonte_valor = 'PDF' if record.get('valor') else 'fallback'
+                                        app_logger.info(f"[{idx+1}] Criando objeto Servico (valor={valor_nota}, fonte={fonte_valor})...")
                                         servico_obj = Servico(
                                             valor_servico=valor_nota,
                                             aliquota_iss=aliquota_iss,
                                             item_lista_servico=item_lista,
-                                            descricao=descricao_com_hash,
-                                            discriminacao=discriminacao_com_hash
+                                            codigo_nbs=settings.CODIGO_NBS,
+                                            descricao=descricao_final,
+                                            discriminacao=discriminacao_com_hash or None
                                         )
                                         app_logger.info(f"[{idx+1}] Servico criado com sucesso")
                                         
@@ -1434,11 +1461,10 @@ def render_settings():
     st.markdown("---")
     
     # Valor de emissão em lote
-    st.markdown("### 💰 Valor de Emissão em Lote")
+    st.markdown("### 💰 Valor fallback do lote")
     st.markdown(
-        "Todas as NFS-e emitidas em lote usam este valor fixo. "
-        "Altere aqui para definir o padrão; na tela de emissão em lote você ainda "
-        "pode ajustar o valor antes de processar."
+        "Usado **somente** quando o PDF/relatório não trouxer valor. "
+        "Com valor no PDF, ele tem prioridade. Hash do paciente segue nas observações da nota."
     )
     
     with st.form("valor_lote_config_form"):

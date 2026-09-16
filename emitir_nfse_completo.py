@@ -262,41 +262,43 @@ async def emitir_nfse_com_pdf(
 
 
 async def exemplo_emissao():
-    """Exemplo de emissão de NFS-e."""
-    
-    # Dados do prestador
+    """Exemplo de emissão de NFS-e (Matheus Costa / Bliss)."""
+    from config.client import (
+        PRESTADOR_CNPJ, PRESTADOR_IM, PRESTADOR_RAZAO_SOCIAL,
+        PRESTADOR_LOGRADOURO, PRESTADOR_NUMERO, PRESTADOR_BAIRRO,
+        PRESTADOR_MUNICIPIO, PRESTADOR_UF, PRESTADOR_CEP, CANAIS,
+    )
+
     prestador = PrestadorServico(
-        cnpj="59418245000186",
-        inscricao_municipal="8259069",
-        razao_social="GABRIEL SALEH SERVICOS MEDICOS LTDA",
-        nome_fantasia="Dr. Gabriel Saleh",
-        logradouro="Rua Felipe Schmidt",
-        numero="100",
-        bairro="Centro",
-        municipio="Florianopolis",
-        uf="SC",
-        cep="88010000"
+        cnpj=PRESTADOR_CNPJ,
+        inscricao_municipal=PRESTADOR_IM,
+        razao_social=PRESTADOR_RAZAO_SOCIAL,
+        logradouro=PRESTADOR_LOGRADOURO,
+        numero=PRESTADOR_NUMERO,
+        bairro=PRESTADOR_BAIRRO,
+        municipio=PRESTADOR_MUNICIPIO,
+        uf=PRESTADOR_UF,
+        cep=PRESTADOR_CEP,
     )
-    
-    # Dados do tomador
+
     tomador = TomadorServico(
-        cpf="10463540948",
-        nome="Cliente Teste"
+        cpf="12404758454",
+        nome="Jackson dos Santos Lima",
     )
-    
-    # Dados do serviço
+
+    canal = CANAIS["bliss"]
+    hash_paciente = "PACIENTEBLISMxA7e_"
     servico = Servico(
-        descricao="Consulta medica especializada",
-        item_lista_servico="04.01.01",
+        descricao=canal.descricao_servico,
+        discriminacao=f"Hash do Paciente: {hash_paciente}",
+        item_lista_servico=settings.ITEM_LISTA_SERVICO,
+        codigo_nbs=settings.CODIGO_NBS,
         valor_servico=50.00,
-        aliquota_iss=2.00,
-        valor_iss=1.00,
-        valor_deducoes=0.00
+        aliquota_iss=settings.ALIQUOTA_ISS_PADRAO,
+        valor_deducoes=0.00,
     )
-    
-    # Emitir NFS-e
+
     resultado = await emitir_nfse_com_pdf(prestador, tomador, servico)
-    
     return resultado['sucesso']
 
 
